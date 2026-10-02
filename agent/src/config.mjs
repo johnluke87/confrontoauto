@@ -23,7 +23,41 @@ function int(name, fallback) {
   return Number.isFinite(value) ? value : fallback;
 }
 
-const provider = env('LLM_PROVIDER', 'gemini');
+/**
+ * I servizi AI gratuiti, nell'ordine in cui si usano: quando uno finisce la quota del giorno lavora il successivo.
+ * Basta mettere la chiave (secret su GitHub) per attivarne uno; il modello si può cambiare con <NOME>_MODEL.
+ * Tutti tranne Gemini parlano il formato "compatibile OpenAI".
+ */
+const PROVIDERS = [
+  { name: 'gemini', kind: 'gemini', key: 'GEMINI_API_KEY', baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-3.8-flash', minIntervalMs: 7000 },
+  { name: 'mistral', kind: 'openai', key: 'MISTRAL_API_KEY', baseUrl: 'https://api.mistral.ai/v1', model: 'mistral-medium-latest', minIntervalMs: 1500 },
+  { name: 'cerebras', kind: 'openai', key: 'CEREBRAS_API_KEY', baseUrl: 'https://api.cerebras.ai/v1', model: 'gpt-oss-120b', minIntervalMs: 2000 },
+  { name: 'groq', kind: 'openai', key: 'GROQ_API_KEY', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile', minIntervalMs: 3000 },
+  { name: 'openrouter', kind: 'openai', key: 'OPENROUTER_API_KEY', baseUrl: 'https://openrouter.ai/api/v1', model: 'meta-llama/llama-3.3-70b-instruct:free', minIntervalMs: 4000 },
+];
+
+function llmProviders() {
+  const providers = PROVIDERS.filter((p) => env(p.key)).map((p) => ({
+    name: p.name,
+    kind: p.kind,
+    apiKey: cleanSecret(env(p.key)),
+    baseUrl: env(`${p.name.toUpperCase()}_BASE_URL`, p.baseUrl),
+    model: env(`${p.name.toUpperCase()}_MODEL`, p.name === 'gemini' ? env('LLM_MODEL', p.model) : p.model),
+    minIntervalMs: p.minIntervalMs,
+  }));
+  // un servizio qualsiasi "compatibile OpenAI" (anche Ollama in locale): LLM_BASE_URL + LLM_MODEL (+ LLM_API_KEY)
+  if (env('LLM_BASE_URL') && env('LLM_MODEL')) {
+    providers.push({ name: 'custom', kind: 'openai', apiKey: cleanSecret(env('LLM_API_KEY')), baseUrl: env('LLM_BASE_URL'), model: env('LLM_MODEL'), minIntervalMs: int('LLM_MIN_INTERVAL_MS', 0) });
+  }
+  // LLM_ORDER=mistral,gemini per cambiare l'ordine
+  const order = (env('LLM_ORDER') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  return order.length ? providers.sort((a, b) => rank(order, a.name) - rank(order, b.name)) : providers;
+}
+
+function rank(order, name) {
+  const i = order.indexOf(name);
+  return i < 0 ? order.length : i;
+}
 
 export function loadConfig() {
   return {
@@ -31,17 +65,9 @@ export function loadConfig() {
     apiUrl: required('CA_API_URL').replace(/\/+$/, ''),
     agentToken: cleanSecret(required('CA_AGENT_TOKEN')),
 
-    llm: {
-      // 'gemini' (Google AI Studio, piano gratuito) oppure 'openai' = qualsiasi API compatibile (Groq, OpenRouter, Ollama...)
-      provider,
-      model: env('LLM_MODEL', provider === 'gemini' ? 'gemini-3.8-flash' : undefined),
-      apiKey: cleanSecret(env('LLM_API_KEY', env('GEMINI_API_KEY'))),
-      baseUrl: env('LLM_BASE_URL', provider === 'gemini' ? 'https://generativelanguage.googleapis.com/v1beta' : undefined),
-      // il piano gratuito di Gemini ha un limite di richieste al minuto: meglio non correre
-      minIntervalMs: int('LLM_MIN_INTERVAL_MS', provider === 'gemini' ? 7000 : 0),
-    },
+    llmProviders: llmProviders(),
 
-    // quante chiamate all'AI al massimo per esecuzione (48 esecuzioni al giorno x 5 = 240, sotto il limite gratuito)
+    // quante chiamate all'AI al massimo per esecuzione
     maxLlmCalls: int('MAX_LLM_CALLS', 5),
     maxTasks: int('MAX_TASKS', 4),
     maxRunMinutes: int('MAX_RUN_MINUTES', 20),

@@ -27,6 +27,10 @@ async function main() {
     return;
   }
 
+  // prima di prenotare lavori controllo di avere almeno un servizio AI configurato
+  const llm = new Llm(config.llmProviders, config.maxLlmCalls, log);
+  log(`Servizi AI: ${config.llmProviders.map((p) => `${p.name} (${p.model})`).join(' → ')}`);
+
   const { tasks, features } = await api.work(config.maxTasks);
   if (tasks.length === 0) {
     log('Niente da ricercare adesso');
@@ -34,9 +38,10 @@ async function main() {
   }
   log(`${tasks.length} lavori: ${tasks.map((t) => (t.type === 'brand' ? t.brand : `${t.brand} ${t.model}`)).join(', ')}`);
 
-  const llm = new Llm(config.llm, config.maxLlmCalls, log);
   const pages = new PageFetcher({ browser: config.browser, userAgent: config.userAgent, log });
   await pages.init();
+  const done = new Set();
+  let quotaFinished = false;
 
   try {
     for (const task of tasks) {
@@ -55,13 +60,19 @@ async function main() {
       try {
         result = task.type === 'brand' ? await researchBrand(task, { pages, llm, log }) : await researchModel(task, { pages, llm, features, log });
       } catch (error) {
-        if (error instanceof BudgetExhausted || error instanceof RateLimited) {
-          // non è colpa del sito: il lavoro resta prenotato e verrà ripreso più tardi
+        if (error instanceof RateLimited) {
+          // quota gratuita finita su tutti i servizi: inutile continuare oggi
+          log(`  ${error.message}`);
+          summary.push([label, 'rimandato · quota AI finita', '']);
+          quotaFinished = true;
+          break;
+        }
+        if (error instanceof BudgetExhausted) {
           log(`  interrotto: ${error.message}`);
           break;
         }
         if (error instanceof LlmUnavailable) {
-          // chiave o modello dell'AI non validi: mi fermo e lo segnalo, i lavori restano da fare
+          // chiavi o modelli dell'AI non validi: mi fermo e lo segnalo, i lavori restano da fare
           log(`  AI non utilizzabile: ${error.message}`);
           summary.push([label, `interrotto · ${error.message}`, '']);
           process.exitCode = 1;
@@ -71,6 +82,7 @@ async function main() {
         result = { task: { type: task.type, id: task.id }, ok: false, error: error.message.slice(0, 500) };
       }
 
+      done.add(task);
       if (config.dryRun) {
         console.log(JSON.stringify(result, null, 2));
         const found = !result.ok
@@ -88,17 +100,30 @@ async function main() {
     }
   } finally {
     await pages.close();
+    // i lavori prenotati ma non fatti tornano subito disponibili (invece di restare bloccati 2 ore)
+    const left = tasks.filter((t) => !done.has(t));
+    if (left.length > 0) {
+      await api.release(left).catch((error) => log(`Non riesco a liberare i lavori: ${error.message}`));
+    }
   }
 
-  log(`Fatto: ${summary.length} lavori, ${llm.calls} chiamate all'AI`);
+  log(`Fatto: ${summary.length} lavori, ${llm.calls} chiamate all'AI (ultima usata: ${llm.current})`);
   // riepilogo nella pagina dell'esecuzione su GitHub
   if (process.env.GITHUB_STEP_SUMMARY) {
     // una cella di tabella Markdown: niente a capo né "|", e non troppo lunga
     const cell = (value) => String(value).replace(/\s+/g, ' ').replace(/\|/g, '/').slice(0, 300);
     const rows = summary.map((r) => `| ${r.map(cell).join(' | ')} |`).join('\n');
-    await appendFile(process.env.GITHUB_STEP_SUMMARY, `| Lavoro | Esito | Segnalazioni |\n|---|---|---|\n${rows}\n\nChiamate all'AI: ${llm.calls}\n`);
+    await appendFile(
+      process.env.GITHUB_STEP_SUMMARY,
+      `| Lavoro | Esito | Segnalazioni |\n|---|---|---|\n${rows}\n\nChiamate all'AI: ${llm.calls} · servizio: ${llm.current}\n\n`,
+    );
+  }
+  // codice 3 = quota AI finita: il workflow smette di fare altri giri
+  if (quotaFinished) {
+    process.exitCode = 3;
   }
 }
+
 
 main().catch((error) => {
   console.error(error);
