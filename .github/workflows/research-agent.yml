@@ -15,6 +15,9 @@ on:
         description: Prova senza inviare niente all'API
         type: boolean
         default: false
+      rounds:
+        description: Giri di fila (1 minuto di pausa tra uno e l'altro; max 20)
+        default: '1'
 
 # mai due esecuzioni insieme: la seconda aspetta la prima
 concurrency:
@@ -27,7 +30,7 @@ permissions:
 jobs:
   research:
     runs-on: ubuntu-latest
-    timeout-minutes: 28
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: agent
@@ -79,6 +82,19 @@ jobs:
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
 
+      # più giri di fila solo se avviato a mano con "Giri" > 1 (utile all'inizio per vedere subito i risultati)
       - name: Ricerca
         if: steps.peek.outputs.due != '0'
-        run: node src/index.mjs
+        env:
+          ROUNDS: ${{ inputs.rounds || '1' }}
+        run: |
+          rounds=$(( ROUNDS > 20 ? 20 : (ROUNDS < 1 ? 1 : ROUNDS) ))
+          for round in $(seq 1 "$rounds"); do
+            [ "$rounds" -gt 1 ] && echo "::group::Giro $round di $rounds"
+            node src/index.mjs || echo "::warning::Giro $round finito con un errore"
+            [ "$rounds" -gt 1 ] && echo "::endgroup::"
+            if [ "$round" -lt "$rounds" ]; then
+              [ "$(node src/index.mjs --peek)" = "0" ] && { echo "Niente altro in scadenza"; break; }
+              sleep 60
+            fi
+          done
