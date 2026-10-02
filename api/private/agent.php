@@ -216,3 +216,22 @@ function handle_research_now(): never
     }
     json_response(['queued' => $queued]);
 }
+
+/** POST /agent/release  { "tasks": [{"type": "model", "id": 12}, ...] }: libera lavori prenotati e non fatti. */
+function handle_agent_release(): never
+{
+    require_agent();
+    $body = read_json_body();
+    $released = 0;
+    foreach (array_slice(is_array($body['tasks'] ?? null) ? $body['tasks'] : [], 0, 50) as $task) {
+        $type = is_array($task) ? ($task['type'] ?? null) : null;
+        $id = is_array($task) ? ($task['id'] ?? null) : null;
+        if (in_array($type, ['brand', 'model'], true) && is_int($id)) {
+            $table = $type === 'brand' ? 'ca_brands' : 'ca_models';
+            $stmt = db()->prepare("UPDATE $table SET research_claimed_at = NULL WHERE id = ?");
+            $stmt->execute([$id]);
+            $released += $stmt->rowCount();
+        }
+    }
+    json_response(['released' => $released]);
+}

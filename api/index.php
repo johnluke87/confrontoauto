@@ -45,6 +45,7 @@ $routes = [
     // Research agent (GitHub Actions): si autentica con l'header X-Agent-Token, non con il cookie
     ['GET',    '#^/agent/work$#',      'handle_agent_work'],
     ['POST',   '#^/agent/results$#',   'handle_agent_results'],
+    ['POST',   '#^/agent/release$#',   'handle_agent_release'],
 ];
 
 $method = $_SERVER['REQUEST_METHOD'];

@@ -35,6 +35,11 @@ export class Api {
     return this.request(`/agent/work?limit=${limit}`);
   }
 
+  /** Lavori prenotati ma non fatti (quota AI finita, tempo scaduto): tornano subito disponibili. */
+  release(tasks) {
+    return this.request('/agent/release', { method: 'POST', body: JSON.stringify({ tasks: tasks.map((t) => ({ type: t.type, id: t.id })) }) });
+  }
+
   submit(result) {
     return this.request('/agent/results', { method: 'POST', body: JSON.stringify(result) });
   }

@@ -30,13 +30,24 @@ Repository → Settings → Secrets and variables → Actions:
 |----------|------------------|------------------------------------------------------------------------------|
 | Secret   | `CA_AGENT_TOKEN` | lo stesso `agent_token` di `api/private/config.php`                          |
 | Secret   | `GEMINI_API_KEY` | chiave gratuita da https://aistudio.google.com/apikey                        |
+| Secret   | `MISTRAL_API_KEY` | (facoltativa) https://console.mistral.ai → piano gratuito "Experiment"      |
+| Secret   | `CEREBRAS_API_KEY` | (facoltativa) https://cloud.cerebras.ai                                    |
+| Secret   | `GROQ_API_KEY` | (facoltativa) https://console.groq.com/keys                                     |
+| Secret   | `OPENROUTER_API_KEY` | (facoltativa) https://openrouter.ai/keys (modelli ":free")               |
 | Variable | `CA_API_URL`     | (facoltativa) default `https://www.gianlucadario.com/extra/confronto-auto/api` |
 | Variable | `MAX_LLM_CALLS`  | (facoltativa) chiamate all'AI per esecuzione, default 5                       |
-| Variable | `LLM_MODEL`      | (facoltativa) default `gemini-3.8-flash` (se Google lo ritira, l'agent sceglie da solo il flash più recente)                                     |
+| Variable | `GEMINI_MODEL`, `MISTRAL_MODEL`… | (facoltative) modello di ogni servizio                        |
+| Variable | `LLM_ORDER`      | (facoltativa) ordine dei servizi, es. `mistral,gemini,groq`                  |
 
-Con 48 esecuzioni al giorno e 5 chiamate ciascuna si resta sotto il limite giornaliero gratuito di Gemini.
-Per un altro servizio gratuito compatibile OpenAI (Groq, OpenRouter): `LLM_PROVIDER=openai`,
-`LLM_BASE_URL`, `LLM_MODEL` e il secret `LLM_API_KEY`.
+### Catena di AI gratuite
+
+Il piano gratuito di Gemini oggi è piccolo (circa 20 richieste al giorno per modello). L'agent usa una **catena**:
+prima Gemini, provando tutti i suoi modelli "flash" e "flash-lite" (ognuno ha la sua quota), poi Mistral, Cerebras,
+Groq e OpenRouter, **solo quelli di cui hai messo la chiave**. Quando uno finisce la quota del giorno passa al
+successivo; quando sono finiti tutti si ferma (il workflow smette di fare giri) e riprende al giro dopo.
+I lavori prenotati e non fatti vengono liberati subito.
+
+Per un servizio qualsiasi compatibile OpenAI (anche Ollama in locale): variables `LLM_BASE_URL`, `LLM_MODEL` e secret `LLM_API_KEY`.
 
 ## Prova in locale
 

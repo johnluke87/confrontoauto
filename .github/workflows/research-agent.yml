@@ -37,10 +37,20 @@ jobs:
     env:
       CA_API_URL: ${{ vars.CA_API_URL || 'https://www.gianlucadario.com/extra/confronto-auto/api' }}
       CA_AGENT_TOKEN: ${{ secrets.CA_AGENT_TOKEN }}
+      # catena di AI gratuite: si usa la prima con quota disponibile, poi le altre (basta creare il secret per attivarla)
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      # per usare un altro servizio compatibile OpenAI (Groq, OpenRouter...): variables LLM_PROVIDER=openai,
-      # LLM_BASE_URL, LLM_MODEL e il secret LLM_API_KEY
-      LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'gemini' }}
+      MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      # facoltativi: modello di ogni servizio (variables GEMINI_MODEL, MISTRAL_MODEL...) e ordine (LLM_ORDER=mistral,gemini)
+      GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+      MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL }}
+      CEREBRAS_MODEL: ${{ vars.CEREBRAS_MODEL }}
+      GROQ_MODEL: ${{ vars.GROQ_MODEL }}
+      OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
+      LLM_ORDER: ${{ vars.LLM_ORDER }}
+      # un servizio qualsiasi compatibile OpenAI: variables LLM_BASE_URL e LLM_MODEL, secret LLM_API_KEY
       LLM_MODEL: ${{ vars.LLM_MODEL }}
       LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
@@ -93,8 +103,15 @@ jobs:
           rounds=$(( ROUNDS > 20 ? 20 : (ROUNDS < 1 ? 1 : ROUNDS) ))
           for round in $(seq 1 "$rounds"); do
             [ "$rounds" -gt 1 ] && echo "::group::Giro $round di $rounds"
-            node src/index.mjs || echo "::warning::Giro $round finito con un errore"
+            code=0
+            node src/index.mjs || code=$?
             [ "$rounds" -gt 1 ] && echo "::endgroup::"
+            # 3 = quota gratuita finita su tutti i servizi AI: inutile fare altri giri oggi
+            if [ "$code" -eq 3 ]; then
+              echo "::notice::Quota AI finita per oggi: mi fermo al giro $round"
+              break
+            fi
+            [ "$code" -ne 0 ] && echo "::warning::Giro $round finito con un errore"
             if [ "$round" -lt "$rounds" ]; then
               [ "$(node src/index.mjs --peek)" = "0" ] && { echo "Niente altro in scadenza"; break; }
               sleep 60

@@ -126,7 +126,7 @@ export class Llm {
     if (!next) {
       return false;
     }
-    this.log(`AI: ${provider.model} non disponibile, passo a ${next}`);
+    this.log(`AI: ${provider.model} esaurito o non disponibile, passo a ${next}`);
     provider.triedModels.add(next);
     provider.model = next;
     return true;
