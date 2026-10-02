@@ -18,8 +18,9 @@ Il programma che tiene aggiornato l'archivio di Confronto auto. Gira **gratis** 
    (prezzi cambiati più del 15%, modelli spariti, troppi scarti, nessuna fonte ufficiale) l'import
    va nella pagina **Revisione** dell'app e aspetta un amministratore.
 
-Il programma rispetta `robots.txt`, fa una pausa tra due pagine dello stesso sito, rifiuta i cookie
-non necessari e si presenta come `ConfrontoAutoBot`.
+Il programma rispetta `robots.txt` (regole del gruppo `ConfrontoAutoBot` se il sito le ha, altrimenti `*`),
+fa una pausa tra due pagine dello stesso sito, rifiuta i cookie non necessari e si presenta con uno
+user agent da browser, perché diversi siti rifiutano le richieste che si dichiarano bot.
 
 ## Configurazione su GitHub
 

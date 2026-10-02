@@ -48,9 +48,10 @@ export function loadConfig() {
 
     // 'playwright' = browser vero (siti fatti in JavaScript), 'fetch' = solo HTML, 'auto' = playwright se installato
     browser: env('BROWSER', 'auto'),
+    // user agent da browser: diversi siti (es. Audi) rifiutano le richieste che si dichiarano bot
     userAgent: env(
       'AGENT_USER_AGENT',
-      'Mozilla/5.0 (compatible; ConfrontoAutoBot/1.0; +https://www.gianlucadario.com/extra/confronto-auto/)',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     ),
 
     // DRY_RUN=1: stampa i risultati invece di mandarli all'API
