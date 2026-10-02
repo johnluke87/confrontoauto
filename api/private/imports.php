@@ -801,6 +801,8 @@ function import_summary(array $r): array
         'warnings'    => $count('warning'),
         'reviews'     => $count('review'),
         'errors'      => $count('error'),
+        // il primo errore (o motivo di revisione), da mostrare direttamente nell'elenco
+        'firstProblem' => mb_substr((string) (array_values(array_filter($issues, fn ($i) => in_array($i['level'] ?? '', ['error', 'review'], true)))[0]['message'] ?? ''), 0, 200) ?: null,
         'receivedAt'  => utc_to_iso($r['received_at']),
         'processedAt' => utc_to_iso($r['processed_at']),
     ];

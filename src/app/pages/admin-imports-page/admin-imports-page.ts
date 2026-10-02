@@ -50,6 +50,21 @@ export class AdminImportsPage {
     });
   }
 
+  protected retry(): void {
+    this.unlocking.set(true);
+    this.api.retry().subscribe({
+      next: (result) => {
+        this.research.set(result);
+        this.unlockMessage.set(`${result.requeued} marchi/modelli di nuovo in coda: partono alla prossima esecuzione dell'agent.`);
+        this.unlocking.set(false);
+      },
+      error: () => {
+        this.unlockMessage.set('Non sono riuscito a rimetterli in coda, riprova');
+        this.unlocking.set(false);
+      },
+    });
+  }
+
   protected changeStatus(status: ImportStatus): void {
     this.status.set(status);
     this.expandedId.set(null);

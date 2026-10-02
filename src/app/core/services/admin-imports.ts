@@ -22,6 +22,11 @@ export class AdminImports {
     return this.http.post<ResearchStatus & { released: number }>(`${this.api}/admin/research-unlock`, {});
   }
 
+  /** Rimette subito in coda marchi e modelli falliti che aspettano un nuovo tentativo. */
+  retry(): Observable<ResearchStatus & { requeued: number }> {
+    return this.http.post<ResearchStatus & { requeued: number }>(`${this.api}/admin/research-retry`, {});
+  }
+
   list(status: ImportStatus): Observable<ImportList> {
     return this.http.get<ImportList>(`${this.api}/admin/imports`, { params: { status } });
   }

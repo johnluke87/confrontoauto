@@ -17,6 +17,9 @@
     <div class="ultimo">ultimo risultato: {{ r.lastResultAt ? (r.lastResultAt | date: 'd/M HH:mm') : 'mai' }}</div>
     <span class="spazio"></span>
     <button mat-stroked-button (click)="research.reload()"><mat-icon>refresh</mat-icon> Aggiorna</button>
+    @if (r.waitingRetry) {
+      <button mat-flat-button (click)="retry()" [disabled]="unlocking()"><mat-icon>replay</mat-icon> Riprova adesso i {{ r.waitingRetry }}</button>
+    }
     @if (r.claimed) {
       <button mat-flat-button (click)="unlock()" [disabled]="unlocking()"><mat-icon>lock_open</mat-icon> Sblocca i prenotati</button>
     }
@@ -49,6 +52,9 @@
           <mat-icon>{{ item.taskType === 'brand' ? 'format_list_bulleted' : 'directions_car' }}</mat-icon>
           <span class="titolo">
             {{ item.taskType === 'brand' ? 'Gamma ' + item.brand : item.brand + ' ' + item.model }}
+            @if (item.firstProblem) {
+              <span class="problema">{{ item.firstProblem }}</span>
+            }
           </span>
           <span class="segnali">
             @if (item.errors) {

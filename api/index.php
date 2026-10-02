@@ -43,6 +43,7 @@ $routes = [
     ['POST',   '#^/admin/research-now$#',            'handle_research_now'],
     ['GET',    '#^/admin/research-status$#',         'handle_research_status'],
     ['POST',   '#^/admin/research-unlock$#',         'handle_research_unlock'],
+    ['POST',   '#^/admin/research-retry$#',          'handle_research_retry'],
 
     // Research agent (GitHub Actions): si autentica con l'header X-Agent-Token, non con il cookie
     ['GET',    '#^/agent/work$#',      'handle_agent_work'],

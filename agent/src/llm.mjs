@@ -106,6 +106,11 @@ export class Llm {
         await sleep(20_000 * attempt);
         continue;
       }
+      // sovraccarico che non passa ("high demand"): per Gemini provo un altro modello
+      if (response.status >= 500 && provider.kind === 'gemini' && (await this.switchGeminiModel(provider))) {
+        attempt = 0;
+        continue;
+      }
       // modello ritirato: Gemini cerca il "flash" più recente
       if (response.status === 404 && provider.kind === 'gemini' && (await this.switchGeminiModel(provider))) {
         continue;

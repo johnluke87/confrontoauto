@@ -136,3 +136,14 @@ h1 {
   margin: 0 0 12px;
   color: var(--mat-sys-primary);
 }
+
+// il motivo (errore o revisione) sotto il nome, senza dover aprire la riga
+.problema {
+  display: block;
+  font-weight: 400;
+  font-size: 0.6875rem;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

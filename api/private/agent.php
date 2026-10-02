@@ -162,7 +162,8 @@ function handle_agent_results(): never
     if (($body['ok'] ?? true) === false) {
         $error = is_string($body['error'] ?? null) ? mb_substr($body['error'], 0, 500) : 'errore non specificato';
         finish_import($importId, 'failed', [['level' => 'error', 'message' => "L'agent non ci è riuscito: $error"]]);
-        schedule_research($type, $id, AGENT_RETRY_DAYS);
+        // errore dell'AI (sovraccarico, risposta strana): non è colpa del sito, si riprova domani e non tra una settimana
+        schedule_research($type, $id, str_starts_with($error, 'AI:') ? 1 : AGENT_RETRY_DAYS);
         json_response(['importId' => $importId, 'status' => 'failed']);
     }
 
@@ -275,7 +276,23 @@ function research_status(): array
         'claimed'             => $count("SELECT COUNT(*) $activeModels AND m.research_claimed_at >= ?", [$claimFree])
                                + $count('SELECT COUNT(*) FROM ca_brands WHERE research_claimed_at >= ?', [$claimFree]),
         // in attesa di un nuovo tentativo (sito che blocca, errore...)
-        'waitingRetry'        => $count("SELECT COUNT(*) $activeModels AND m.next_research_at > ? AND m.last_researched_at IS NULL", [$now]),
+        'waitingRetry'        => $count("SELECT COUNT(*) $activeModels AND m.next_research_at > ? AND m.last_researched_at IS NULL", [$now])
+                               + $count('SELECT COUNT(*) FROM ca_brands WHERE enabled = 1 AND next_research_at > ? AND last_researched_at IS NULL', [$now]),
         'lastResultAt'        => utc_to_iso(db()->query('SELECT MAX(received_at) FROM ca_imports')->fetchColumn() ?: null),
     ];
+}
+
+/**
+ * POST /admin/research-retry: rimette subito in coda marchi e modelli che non sono MAI riusciti
+ * (falliti per un errore dell'AI o del sito) e aspettano il prossimo tentativo.
+ */
+function handle_research_retry(): never
+{
+    require_admin();
+    $now = now_utc();
+    $brands = db()->prepare('UPDATE ca_brands SET next_research_at = NULL, research_claimed_at = NULL WHERE enabled = 1 AND last_researched_at IS NULL AND next_research_at > ?');
+    $brands->execute([$now]);
+    $models = db()->prepare("UPDATE ca_models SET next_research_at = NULL, research_claimed_at = NULL WHERE status = 'active' AND last_researched_at IS NULL AND next_research_at > ?");
+    $models->execute([$now]);
+    json_response(['requeued' => $brands->rowCount() + $models->rowCount()] + research_status());
 }

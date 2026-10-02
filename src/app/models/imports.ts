@@ -30,6 +30,7 @@ export interface ImportSummary {
   warnings: number;
   reviews: number;
   errors: number;
+  firstProblem: string | null;
   receivedAt: string;
   processedAt: string | null;
 }
