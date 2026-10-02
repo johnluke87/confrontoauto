@@ -4,6 +4,28 @@
   strano (prezzi cambiati molto, modelli spariti, troppi dati scartati, nessuna fonte ufficiale) aspettano te.
 </p>
 
+@if (research.hasValue()) {
+  @let r = research.value();
+  <div class="stato-ricerca">
+    <div><strong>{{ r.brandsWithModels }}</strong> / {{ r.brandsEnabled }} marchi con la gamma</div>
+    <div><strong>{{ r.modelsWithVariants }}</strong> / {{ r.models }} modelli con versioni e prezzi</div>
+    <div><strong>{{ r.due }}</strong> lavori da fare</div>
+    <div><strong>{{ r.claimed }}</strong> prenotati</div>
+    @if (r.waitingRetry) {
+      <div><strong>{{ r.waitingRetry }}</strong> in attesa di riprovare</div>
+    }
+    <div class="ultimo">ultimo risultato: {{ r.lastResultAt ? (r.lastResultAt | date: 'd/M HH:mm') : 'mai' }}</div>
+    <span class="spazio"></span>
+    <button mat-stroked-button (click)="research.reload()"><mat-icon>refresh</mat-icon> Aggiorna</button>
+    @if (r.claimed) {
+      <button mat-flat-button (click)="unlock()" [disabled]="unlocking()"><mat-icon>lock_open</mat-icon> Sblocca i prenotati</button>
+    }
+  </div>
+  @if (unlockMessage(); as message) {
+    <p class="messaggio" role="status">{{ message }}</p>
+  }
+}
+
 <mat-button-toggle-group [value]="status()" (change)="changeStatus($event.value)" aria-label="Stato" hideSingleSelectionIndicator>
   @for (s of statuses; track s.value) {
     <mat-button-toggle [value]="s.value">

@@ -1,3 +1,16 @@
+/** A che punto è il Research agent (pagina Revisione). */
+export interface ResearchStatus {
+  brandsEnabled: number;
+  brandsWithModels: number;
+  models: number;
+  modelsWithVariants: number;
+  // lavori da fare adesso, prenotati da un'esecuzione, in attesa di un nuovo tentativo
+  due: number;
+  claimed: number;
+  waitingRetry: number;
+  lastResultAt: string | null;
+}
+
 export type ImportStatus = 'pending' | 'applied' | 'review' | 'rejected' | 'failed';
 
 export interface ImportIssue {

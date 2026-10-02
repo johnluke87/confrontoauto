@@ -1,6 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
+import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { AdminImports } from '../../core/services/admin-imports';
@@ -10,7 +11,7 @@ import { ImportDetailPanel } from './import-detail/import-detail';
 /** Solo amministratori: cosa ha portato il Research agent, e cosa aspetta un controllo. */
 @Component({
   selector: 'app-admin-imports-page',
-  imports: [DatePipe, MatButtonToggleModule, MatIconModule, ImportDetailPanel],
+  imports: [DatePipe, MatButtonModule, MatButtonToggleModule, MatIconModule, ImportDetailPanel],
   templateUrl: './admin-imports-page.html',
   styleUrl: './admin-imports-page.scss',
 })
@@ -29,6 +30,25 @@ export class AdminImportsPage {
 
   // params: quando cambia lo stato scelto, rxResource rifà la richiesta da solo
   protected list = rxResource({ params: () => this.status(), stream: ({ params }) => this.api.list(params) });
+
+  protected research = rxResource({ stream: () => this.api.researchStatus() });
+  protected unlocking = signal(false);
+  protected unlockMessage = signal<string | null>(null);
+
+  protected unlock(): void {
+    this.unlocking.set(true);
+    this.api.unlock().subscribe({
+      next: (result) => {
+        this.research.set(result);
+        this.unlockMessage.set(`${result.released} lavori sbloccati: partono alla prossima esecuzione dell'agent.`);
+        this.unlocking.set(false);
+      },
+      error: () => {
+        this.unlockMessage.set('Non sono riuscito a sbloccarli, riprova');
+        this.unlocking.set(false);
+      },
+    });
+  }
 
   protected changeStatus(status: ImportStatus): void {
     this.status.set(status);

@@ -236,3 +236,46 @@ function handle_agent_release(): never
     }
     json_response(['released' => $released]);
 }
+
+/** GET /admin/research-status: a che punto è il Research agent (per la pagina Revisione). */
+function handle_research_status(): never
+{
+    require_admin();
+    json_response(research_status());
+}
+
+/** POST /admin/research-unlock: libera TUTTI i lavori prenotati (es. dopo un'esecuzione interrotta). */
+function handle_research_unlock(): never
+{
+    require_admin();
+    $models = db()->exec('UPDATE ca_models SET research_claimed_at = NULL WHERE research_claimed_at IS NOT NULL');
+    $brands = db()->exec('UPDATE ca_brands SET research_claimed_at = NULL WHERE research_claimed_at IS NOT NULL');
+    json_response(['released' => (int) $models + (int) $brands] + research_status());
+}
+
+function research_status(): array
+{
+    $now = now_utc();
+    $claimFree = gmdate('Y-m-d H:i:s', time() - AGENT_CLAIM_MINUTES * 60);
+    $count = function (string $sql, array $params = []): int {
+        $stmt = db()->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    };
+    $activeModels = "FROM ca_models m JOIN ca_brands b ON b.id = m.brand_id WHERE b.enabled = 1 AND m.status = 'active'";
+    return [
+        'brandsEnabled'       => $count('SELECT COUNT(*) FROM ca_brands WHERE enabled = 1'),
+        'brandsWithModels'    => $count("SELECT COUNT(DISTINCT m.brand_id) $activeModels"),
+        'models'              => $count("SELECT COUNT(*) $activeModels"),
+        'modelsWithVariants'  => $count("SELECT COUNT(DISTINCT m.id) $activeModels AND EXISTS (SELECT 1 FROM ca_trims t JOIN ca_variants v ON v.trim_id = t.id WHERE t.model_id = m.id)"),
+        // da fare adesso (non prenotati)
+        'due'                 => $count("SELECT COUNT(*) $activeModels AND (m.next_research_at IS NULL OR m.next_research_at <= ?) AND (m.research_claimed_at IS NULL OR m.research_claimed_at < ?)", [$now, $claimFree])
+                               + $count('SELECT COUNT(*) FROM ca_brands b WHERE b.enabled = 1 AND b.official_url IS NOT NULL AND (b.next_research_at IS NULL OR b.next_research_at <= ?) AND (b.research_claimed_at IS NULL OR b.research_claimed_at < ?)', [$now, $claimFree]),
+        // prenotati da un'esecuzione in corso (o interrotta)
+        'claimed'             => $count("SELECT COUNT(*) $activeModels AND m.research_claimed_at >= ?", [$claimFree])
+                               + $count('SELECT COUNT(*) FROM ca_brands WHERE research_claimed_at >= ?', [$claimFree]),
+        // in attesa di un nuovo tentativo (sito che blocca, errore...)
+        'waitingRetry'        => $count("SELECT COUNT(*) $activeModels AND m.next_research_at > ? AND m.last_researched_at IS NULL", [$now]),
+        'lastResultAt'        => utc_to_iso(db()->query('SELECT MAX(received_at) FROM ca_imports')->fetchColumn() ?: null),
+    ];
+}
