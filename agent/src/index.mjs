@@ -66,7 +66,12 @@ async function main() {
 
       if (config.dryRun) {
         console.log(JSON.stringify(result, null, 2));
-        summary.push([label, 'prova (non inviato)', '']);
+        const found = !result.ok
+          ? `errore: ${result.error}`
+          : task.type === 'brand'
+            ? `${result.models.length} modelli: ${result.models.map((m) => m.name).join(', ')}`
+            : `${result.variants.length} versioni, ${result.powertrains.length} motori, ${result.features.length} dotazioni`;
+        summary.push([label, `prova (non inviato) · ${found}`, result.agentIssues?.length ?? '']);
         continue;
       }
       const response = await api.submit(result);
