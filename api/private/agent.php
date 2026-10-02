@@ -71,7 +71,7 @@ function handle_agent_work(): never
             "SELECT m.id, m.name, m.official_url, b.id AS brand_id, b.name AS brand, b.official_url AS brand_url
                FROM ca_models m JOIN ca_brands b ON b.id = m.brand_id
               WHERE $modelWhere
-              ORDER BY m.next_research_at IS NOT NULL, m.next_research_at, m.id LIMIT $left"
+              ORDER BY m.research_priority DESC, m.next_research_at IS NOT NULL, m.next_research_at, m.id LIMIT $left"
         );
         $stmt->execute($params);
         $models = $stmt->fetchAll();
@@ -173,7 +173,8 @@ function handle_agent_results(): never
 function mark_researched(string $type, int $id): void
 {
     $table = $type === 'brand' ? 'ca_brands' : 'ca_models';
-    db()->prepare("UPDATE $table SET last_researched_at = ?, next_research_at = ?, research_claimed_at = NULL WHERE id = ?")
+    $priority = $type === 'model' ? ', research_priority = 0' : '';
+    db()->prepare("UPDATE $table SET last_researched_at = ?, next_research_at = ?, research_claimed_at = NULL$priority WHERE id = ?")
         ->execute([now_utc(), gmdate('Y-m-d H:i:s', time() + research_interval_days() * 86400), $id]);
 }
 
@@ -181,6 +182,37 @@ function mark_researched(string $type, int $id): void
 function schedule_research(string $type, int $id, int $days): void
 {
     $table = $type === 'brand' ? 'ca_brands' : 'ca_models';
-    db()->prepare("UPDATE $table SET next_research_at = ?, research_claimed_at = NULL WHERE id = ?")
+    $priority = $type === 'model' ? ', research_priority = 0' : '';
+    db()->prepare("UPDATE $table SET next_research_at = ?, research_claimed_at = NULL$priority WHERE id = ?")
         ->execute([gmdate('Y-m-d H:i:s', time() + $days * 86400), $id]);
+}
+
+/**
+ * POST /admin/research-now  { "modelId": 12 }  oppure  { "brandId": 3 }
+ * Solo amministratori: "cerca subito". Il modello (o tutti i modelli del marchio) passa davanti agli altri
+ * alla prossima esecuzione del Research agent. Se il marchio non ha ancora modelli, si ricerca il marchio.
+ */
+function handle_research_now(): never
+{
+    require_admin();
+    $body = read_json_body();
+    $modelId = $body['modelId'] ?? null;
+    $brandId = $body['brandId'] ?? null;
+
+    if (is_int($modelId)) {
+        $stmt = db()->prepare("UPDATE ca_models SET research_priority = 1, next_research_at = NULL, research_claimed_at = NULL WHERE id = ? AND status = 'active'");
+        $stmt->execute([$modelId]);
+        json_response(['queued' => $stmt->rowCount()]);
+    }
+    if (!is_int($brandId)) {
+        throw new HttpException(400, 'Serve "modelId" oppure "brandId"');
+    }
+    $stmt = db()->prepare("UPDATE ca_models SET research_priority = 1, next_research_at = NULL, research_claimed_at = NULL WHERE brand_id = ? AND status = 'active'");
+    $stmt->execute([$brandId]);
+    $queued = $stmt->rowCount();
+    if ($queued === 0) {
+        // nessun modello (o già tutti in coda): rifaccio la ricerca della gamma del marchio
+        db()->prepare('UPDATE ca_brands SET next_research_at = NULL, research_claimed_at = NULL WHERE id = ?')->execute([$brandId]);
+    }
+    json_response(['queued' => $queued]);
 }

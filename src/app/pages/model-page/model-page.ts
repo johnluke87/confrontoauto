@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { RouterLink } from '@angular/router';
+import { Auth } from '../../core/services/auth';
 import { Catalog } from '../../core/services/catalog';
 import { BODY_TYPE_LABELS, CarSource, FUEL_LABELS, Powertrain, TrimFeature } from '../../models/car';
 import { ConfidenceBadge } from '../../shared/confidence-badge/confidence-badge';
@@ -18,6 +19,7 @@ import { Sourced } from '../../shared/sourced/sourced';
   styleUrl: './model-page.scss',
 })
 export class ModelPage {
+  protected auth = inject(Auth);
   private catalog = inject(Catalog);
 
   // dal percorso /catalog/model/:id
@@ -61,6 +63,13 @@ export class ModelPage {
       .filter((f) => known.has(f.code))
       .map((f) => ({ name: f.name, cells: m.trims.map((t) => byKey.get(`${t.id}|${f.code}`) ?? null) }));
   });
+
+  protected queued = signal(false);
+
+  /** "Cerca subito": il Research agent rilegge questo modello prima degli altri. */
+  protected researchNow(modelId: number): void {
+    this.catalog.researchNow({ modelId }).subscribe({ next: () => this.queued.set(true) });
+  }
 
   protected packageName(id: number | null): string {
     return (this.model.hasValue() && this.model.value().packages.find((p) => p.id === id)?.name) || 'pacchetto';

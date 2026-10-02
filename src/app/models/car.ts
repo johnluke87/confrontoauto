@@ -20,6 +20,8 @@ export interface ModelSummary {
   status: 'active' | 'discontinued';
   lastResearchedAt: string | null;
   variants: number;
+  // true = "cerca subito": il Research agent lo fa prima degli altri
+  queued: boolean;
   minPriceCents: number | null;
 }
 

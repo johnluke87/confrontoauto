@@ -45,6 +45,8 @@ jobs:
       LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       MAX_LLM_CALLS: ${{ inputs.max_llm_calls || vars.MAX_LLM_CALLS || '5' }}
+      # lavori presi per giro: più chiamate all'AI = più lavori (un modello ne usa 1-2)
+      MAX_TASKS: ${{ inputs.max_llm_calls || vars.MAX_LLM_CALLS || '5' }}
       DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
       BROWSER: playwright
 

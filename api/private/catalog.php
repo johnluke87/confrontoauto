@@ -104,6 +104,57 @@ function handle_list_regions(): never
 function handle_list_parameters(): never
 {
     require_user();
+    json_response(parameters_json());
+}
+
+/**
+ * PATCH /admin/parameters/{code}  { "value": 1.99, "confidence": "verified", "note": "..." }
+ * Solo amministratori: aggiorna un parametro (es. il prezzo della benzina). La fonte diventa
+ * "inserito a mano da <utente>" con la data di oggi: si vede sempre chi l'ha messo e quando.
+ */
+function handle_update_parameter(string $code): never
+{
+    $user = require_admin();
+    $body = read_json_body();
+
+    $stmt = db()->prepare('SELECT code FROM ca_parameters WHERE code = ?');
+    $stmt->execute([$code]);
+    if ($stmt->fetchColumn() === false) {
+        throw new HttpException(404, 'Parametro inesistente');
+    }
+
+    $value = $body['value'] ?? null;
+    if ($value !== null && (!is_int($value) && !is_float($value) || $value < 0 || $value > 1000000)) {
+        throw new HttpException(400, 'Il valore deve essere un numero positivo (oppure null = mancante)');
+    }
+    $confidence = $value === null ? 'missing' : ($body['confidence'] ?? 'verified');
+    if (!in_array($confidence, ['official', 'verified', 'estimate', 'missing'], true)) {
+        throw new HttpException(400, 'Affidabilità non valida');
+    }
+    $note = $body['note'] ?? null;
+    if ($note !== null && (!is_string($note) || mb_strlen($note) > 500)) {
+        throw new HttpException(400, 'Nota non valida (massimo 500 caratteri)');
+    }
+
+    $now = now_utc();
+    $sourceId = null;
+    if ($value !== null) {
+        db()->prepare('INSERT INTO ca_sources (url, title, source_type, fetched_at, created_at) VALUES (NULL, ?, ?, ?, ?)')
+            ->execute(['Inserito a mano da ' . $user['username'] . ' il ' . gmdate('d/m/Y'), 'other', $now, $now]);
+        $sourceId = (int) db()->lastInsertId();
+    }
+
+    // la nota vecchia ("scenario del tuo Excel"...) non vale più per un valore nuovo: resta solo quella passata
+    $note = $note === null || trim($note) === '' ? null : trim($note);
+    db()->prepare(
+        'UPDATE ca_parameters SET value_num = ?, confidence = ?, source_id = ?, valid_from = ?, note = ?, updated_at = ? WHERE code = ?'
+    )->execute([$value, $confidence, $sourceId, $value === null ? null : gmdate('Y-m-d'), $note, $now, $code]);
+
+    json_response(parameters_json());
+}
+
+function parameters_json(): array
+{
     $rows = db()->query(
         'SELECT p.*, s.title AS source_title, s.url AS source_url, s.source_type
            FROM ca_parameters p
@@ -111,7 +162,7 @@ function handle_list_parameters(): never
           ORDER BY p.sort_order, p.code'
     )->fetchAll();
 
-    json_response(array_map(fn (array $r) => [
+    return array_map(fn (array $r) => [
         'code'       => $r['code'],
         'label'      => $r['label'],
         'value'      => $r['value_num'] === null ? null : (float) $r['value_num'],
@@ -121,5 +172,5 @@ function handle_list_parameters(): never
         'source'     => source_to_json($r),
         'validFrom'  => $r['valid_from'],
         'updatedAt'  => utc_to_iso($r['updated_at']),
-    ], $rows));
+    ], $rows);
 }

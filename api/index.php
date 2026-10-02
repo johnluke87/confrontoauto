@@ -31,6 +31,7 @@ $routes = [
     ['PATCH',  '#^/admin/brands$#',    'handle_update_brands'],
     ['GET',    '#^/regions$#',         'handle_list_regions'],
     ['GET',    '#^/parameters$#',      'handle_list_parameters'],
+    ['PATCH',  '#^/admin/parameters/([a-z0-9_]{1,64})$#', 'handle_update_parameter'],
     ['GET',    '#^/models$#',          'handle_list_models'],
     ['GET',    '#^/models/(\d+)$#',    'handle_get_model'],
 
@@ -39,6 +40,7 @@ $routes = [
     ['GET',    '#^/admin/imports/(\d+)$#',           'handle_get_import'],
     ['POST',   '#^/admin/imports/(\d+)/approve$#',   'handle_approve_import'],
     ['POST',   '#^/admin/imports/(\d+)/reject$#',    'handle_reject_import'],
+    ['POST',   '#^/admin/research-now$#',            'handle_research_now'],
 
     // Research agent (GitHub Actions): si autentica con l'header X-Agent-Token, non con il cookie
     ['GET',    '#^/agent/work$#',      'handle_agent_work'],

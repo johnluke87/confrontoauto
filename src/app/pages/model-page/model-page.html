@@ -25,6 +25,16 @@
         · <a [href]="m.officialUrl" target="_blank" rel="noopener noreferrer">sito ufficiale</a>
       }
     </p>
+    @if (auth.isAdmin() && m.status === 'active') {
+      <p class="cerca-subito">
+        <button mat-stroked-button (click)="researchNow(m.id)" [disabled]="queued()">
+          <mat-icon>bolt</mat-icon> {{ queued() ? 'In coda' : 'Cerca subito' }}
+        </button>
+        @if (queued()) {
+          <span>l'agent lo rilegge alla prossima esecuzione</span>
+        }
+      </p>
+    }
   </header>
 
   <section>

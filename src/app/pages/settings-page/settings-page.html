@@ -79,14 +79,45 @@
                   <div class="nota-inline">{{ p.note }}</div>
                 }
               </td>
-              <td class="num">
-                @if (p.value !== null) {
-                  {{ p.value | number: '1.0-4' }} {{ p.unit }}
-                } @else {
-                  <span class="mancante">mancante</span>
-                }
-              </td>
-              <td><app-confidence-badge [confidence]="p.confidence" [source]="p.source" /></td>
+              @if (editing() === p.code) {
+                <td class="num" colspan="2">
+                  <form class="modifica" (submit)="$event.preventDefault(); saveParam(p.code)">
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="valore">
+                      <input matInput [value]="draftValue()" (input)="draftValue.set($any($event.target).value)"
+                        inputmode="decimal" autocomplete="off" [attr.aria-label]="p.label" />
+                      <span matTextSuffix>{{ p.unit }}</span>
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="affidabilita">
+                      <mat-select [value]="draftConfidence()" (selectionChange)="draftConfidence.set($event.value)" aria-label="Affidabilità">
+                        @for (c of confidenceOptions; track c.value) {
+                          <mat-option [value]="c.value">{{ c.label }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                    <button mat-icon-button type="submit" [disabled]="savingParam()" aria-label="Salva"><mat-icon>check</mat-icon></button>
+                    <button mat-icon-button type="button" (click)="editing.set(null)" aria-label="Annulla"><mat-icon>close</mat-icon></button>
+                  </form>
+                  @if (paramError(); as message) {
+                    <div class="errore" role="alert">{{ message }}</div>
+                  }
+                </td>
+              } @else {
+                <td class="num">
+                  @if (p.value !== null) {
+                    {{ p.value | number: '1.0-4' }} {{ p.unit }}
+                  } @else {
+                    <span class="mancante">mancante</span>
+                  }
+                </td>
+                <td class="azioni">
+                  <app-confidence-badge [confidence]="p.confidence" [source]="p.source" />
+                  @if (auth.isAdmin()) {
+                    <button mat-icon-button class="matita" (click)="startEdit(p)" [attr.aria-label]="'Modifica ' + p.label">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                  }
+                </td>
+              }
             </tr>
           }
         </tbody>

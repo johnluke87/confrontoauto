@@ -1,14 +1,23 @@
 <h1>Archivio</h1>
 
-<mat-form-field appearance="outline" subscriptSizing="dynamic">
-  <mat-label>Marchio</mat-label>
-  <mat-select [value]="brandId()" (selectionChange)="selectBrand($event.value)" [disabled]="!brands.hasValue()">
-    @for (b of sortedBrands(); track b.id) {
-      <mat-option [value]="b.id">{{ b.name }} ({{ b.models }})</mat-option>
-    }
-  </mat-select>
-</mat-form-field>
-
+<div class="barra">
+  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+    <mat-label>Marchio</mat-label>
+    <mat-select [value]="brandId()" (selectionChange)="selectBrand($event.value)" [disabled]="!brands.hasValue()">
+      @for (b of sortedBrands(); track b.id) {
+        <mat-option [value]="b.id">{{ b.name }} ({{ b.models }})</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+  @if (auth.isAdmin() && brandId(); as id) {
+    <button mat-stroked-button (click)="researchBrandNow(id)">
+      <mat-icon>bolt</mat-icon> Cerca subito questo marchio
+    </button>
+  }
+</div>
+@if (queueMessage(); as message) {
+  <p class="messaggio" role="status">{{ message }}</p>
+}
 @if (!brandId()) {
   <p class="suggerimento">Scegli un marchio per vedere i modelli in archivio.</p>
 } @else if (models.isLoading()) {
@@ -31,6 +40,8 @@
             {{ m.variants }} versioni ·
             @if (m.status === 'discontinued') {
               fuori produzione
+            } @else if (m.queued) {
+              <strong class="coda">in coda: cerca subito</strong>
             } @else if (m.lastResearchedAt) {
               aggiornato {{ m.lastResearchedAt | date: 'd/M/yy' }}
             } @else {

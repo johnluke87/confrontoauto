@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ModelDetail, ModelSummary } from '../../models/car';
-import { Brand, Parameter, Region } from '../../models/catalog';
+import { Brand, Confidence, Parameter, Region } from '../../models/catalog';
 import { API_BASE_URL } from '../api';
 
 /** Dati di riferimento: marchi, regioni con il bollo, parametri dei calcoli. */
@@ -28,6 +28,16 @@ export class Catalog {
 
   parameters(): Observable<Parameter[]> {
     return this.http.get<Parameter[]>(`${this.api}/parameters`);
+  }
+
+  /** Solo amministratori: nuovo valore di un parametro. Risponde con tutti i parametri aggiornati. */
+  updateParameter(code: string, changes: { value: number | null; confidence: Confidence; note?: string | null }): Observable<Parameter[]> {
+    return this.http.patch<Parameter[]>(`${this.api}/admin/parameters/${code}`, changes);
+  }
+
+  /** Solo amministratori: "cerca subito" un modello o tutti i modelli di un marchio. */
+  researchNow(target: { modelId: number } | { brandId: number }): Observable<{ queued: number }> {
+    return this.http.post<{ queued: number }>(`${this.api}/admin/research-now`, target);
   }
 
   models(brandId: number): Observable<ModelSummary[]> {

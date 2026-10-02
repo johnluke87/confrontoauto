@@ -94,6 +94,8 @@ $TABLES = [
         last_researched_at DATETIME NULL,
         next_research_at DATETIME NULL,
         research_claimed_at DATETIME NULL,
+        -- 1 = cerca subito (scelto da un amministratore): passa davanti agli altri
+        research_priority TINYINT NOT NULL DEFAULT 0,
         created_at DATETIME NOT NULL,
         updated_at DATETIME NOT NULL,
         UNIQUE KEY uq_ca_models_brand_slug (brand_id, slug),
@@ -307,6 +309,7 @@ $COLUMNS = [
     ['ca_brands', 'research_claimed_at', 'DATETIME NULL AFTER next_research_at'],
     ['ca_models', 'next_research_at', 'DATETIME NULL AFTER last_researched_at'],
     ['ca_models', 'research_claimed_at', 'DATETIME NULL AFTER next_research_at'],
+    ['ca_models', 'research_priority', 'TINYINT NOT NULL DEFAULT 0 AFTER research_claimed_at'],
     ['ca_parameters', 'sort_order', 'SMALLINT NOT NULL DEFAULT 0 AFTER code'],
     ['ca_imports', 'task_type', "ENUM('brand','model') NOT NULL DEFAULT 'model' AFTER id"],
     ['ca_imports', 'reviewed_by', 'INT UNSIGNED NULL AFTER issues'],
@@ -484,45 +487,74 @@ if (strlen($key) < 20) {
         }
         $log[] = 'bollo: regole per ' . count($REGIONS) . ' regioni (Veneto verificato, le altre stime da verificare)';
 
-        // PARAMETRI dei calcoli. NULL + 'missing' = non lo sappiamo ancora (lo cercherà il Research agent): niente numeri inventati
+        // PARAMETRI dei calcoli. NULL + 'missing' = non lo sappiamo ancora: niente numeri inventati.
+        // Regola sul MATERIALE: gomme, freni, frizione, cinghia e batteria li monti tu (solo materiale, niente manodopera);
+        // il serbatoio GPL lo cambia il meccanico (manodopera compresa).
+        $userNotes = $sourceId("Indicazioni dell'utente (02/10/2026)", null, 'other');
         $P = [
-            // [codice, etichetta, valore, unità, nota, fonte, affidabilità]
-            ['fuel_price_petrol', 'Prezzo benzina', 2.135, '€/l', 'scenario del tuo Excel', $excel, 'estimate'],
-            ['fuel_price_diesel', 'Prezzo gasolio', null, '€/l', 'da rilevare (media nazionale MIMIT)', null, 'missing'],
-            ['fuel_price_lpg', 'Prezzo GPL', 0.742, '€/l', 'scenario del tuo Excel', $excel, 'estimate'],
-            ['fuel_price_cng', 'Prezzo metano', null, '€/kg', 'da rilevare (media nazionale MIMIT)', null, 'missing'],
-            ['electricity_price_home', 'Prezzo energia domestica', 0.3024, '€/kWh', 'scenario del tuo Excel', $excel, 'estimate'],
-            ['electricity_price_public', 'Prezzo ricarica pubblica', null, '€/kWh', 'da rilevare', null, 'missing'],
-            ['charging_losses_pct', 'Perdite di ricarica', 10, '%', 'come nel tuo Excel', $excel, 'estimate'],
-            ['real_consumption_factor_pct', 'Consumo reale rispetto al WLTP', null, '%', 'da definire con fonte', null, 'missing'],
-            ['insurance_year', 'Assicurazione RCA (media)', 750, '€/anno', 'Excel: 650–850 €/anno; dipende molto dal profilo', $excel, 'estimate'],
-            ['tire_set_price', 'Treno di gomme (media)', 600, '€', 'Excel: 550–650 € a seconda del modello', $excel, 'estimate'],
-            ['tire_set_every_km', 'Cambio gomme ogni', 52500, 'km', 'Excel: 5 treni in 262.500 km', $excel, 'estimate'],
-            ['service_year', 'Tagliando (media annua)', 290, '€/anno', 'Excel: ~4.300 € in 15 anni', $excel, 'estimate'],
-            ['brakes_job', 'Freni (dischi + pastiglie)', 700, '€', 'Excel: ~1.400 € in 15 anni', $excel, 'estimate'],
-            ['brakes_every_km', 'Freni ogni', 130000, 'km', 'Excel: 2 interventi in 262.500 km', $excel, 'estimate'],
-            ['clutch_job', 'Frizione (solo cambio manuale)', 1100, '€', 'Excel: 1 intervento in 15 anni', $excel, 'estimate'],
-            ['clutch_every_km', 'Frizione ogni', 150000, 'km', 'stima del tuo Excel', $excel, 'estimate'],
-            ['timing_belt_job', 'Cinghia di distribuzione', 1200, '€', 'solo motori a cinghia', $excel, 'estimate'],
-            ['timing_belt_every_years', 'Cinghia ogni', 8, 'anni', 'verificare il motore', $excel, 'estimate'],
-            ['lpg_tank_job', 'Serbatoio GPL (sostituzione/collaudo)', 700, '€', 'Excel: al 10° anno', $excel, 'estimate'],
-            ['lpg_tank_year', 'Serbatoio GPL: sostituzione al', 10, '° anno','come nel tuo Excel', $excel, 'estimate'],
-            ['battery_12v_ac_year', 'Batteria 12V / climatizzatore (fondo)', 67, '€/anno', 'Excel: ~1.000 € in 15 anni', $excel, 'estimate'],
-            ['unexpected_year', 'Imprevisti / piccoli guasti (fondo)', 270, '€/anno', 'Excel: ~4.000 € in 15 anni', $excel, 'estimate'],
-            ['revision_price', 'Revisione', 85, '€', 'prima al 4° anno, poi ogni 2', $excel, 'estimate'],
-            ['wallbox_price', 'Wallbox installata', 1300, '€', 'solo elettriche/plug-in, se la vuoi', $excel, 'estimate'],
-            ['superbollo_eur_kw', 'Superbollo (oltre 185 kW)', 20, '€/kW', 'tributo nazionale, ridotto dopo 5/10/15 anni', $national, 'estimate'],
+            // [codice, etichetta, valore, unità, nota, fonte, affidabilità, valido dal]
+            ['fuel_price_petrol', 'Prezzo benzina', 1.99, '€/l', 'prezzo attuale indicato da te', $userNotes, 'verified', '2026-10-02'],
+            ['fuel_price_diesel', 'Prezzo gasolio', 2.15, '€/l', 'prezzo attuale indicato da te', $userNotes, 'verified', '2026-10-02'],
+            ['fuel_price_lpg', 'Prezzo GPL', 0.80, '€/l', 'prezzo attuale indicato da te', $userNotes, 'verified', '2026-10-02'],
+            ['fuel_price_cng', 'Prezzo metano', 1.55, '€/kg', 'prezzo attuale indicato da te', $userNotes, 'verified', '2026-10-02'],
+            ['electricity_price_home', 'Prezzo energia domestica', 0.3024, '€/kWh', 'scenario del tuo Excel', $excel, 'estimate', '2026-09-20'],
+            ['electricity_price_public', 'Prezzo ricarica pubblica', null, '€/kWh', 'da rilevare', null, 'missing', null],
+            ['charging_losses_pct', 'Perdite di ricarica', 10, '%', 'come nel tuo Excel', $excel, 'estimate', '2026-09-20'],
+            ['real_consumption_factor_pct', 'Consumo reale rispetto al WLTP', null, '%', 'da definire con fonte', null, 'missing', null],
+            ['insurance_year', 'Assicurazione RCA (media)', 750, '€/anno', 'Excel: 650–850 €/anno; dipende molto dal profilo', $excel, 'estimate', '2026-09-20'],
+            ['tire_set_price', 'Treno di gomme (solo materiale)', 600, '€', "valore dell'Excel (550–650 €): verifica che sia senza montaggio", $excel, 'estimate', '2026-09-20'],
+            ['tire_set_every_km', 'Cambio gomme ogni', 60000, 'km', 'indicato da te', $userNotes, 'estimate', '2026-10-02'],
+            ['service_price', 'Tagliando', 250, '€', 'solo i primi anni (vedi sotto), poi niente: indicato da te', $userNotes, 'estimate', '2026-10-02'],
+            ['service_years', 'Tagliandi: per i primi', 2, 'anni', 'uno all\'anno, indicato da te', $userNotes, 'estimate', '2026-10-02'],
+            ['brakes_job', 'Freni: dischi + pastiglie (solo materiale)', 700, '€', "valore dell'Excel: verifica che sia senza manodopera", $excel, 'estimate', '2026-09-20'],
+            ['brakes_every_km', 'Freni ogni', 130000, 'km', 'Excel: 2 interventi in 262.500 km', $excel, 'estimate', '2026-09-20'],
+            ['clutch_job', 'Frizione (solo materiale, solo cambio manuale)', 1100, '€', "valore dell'Excel: verifica che sia senza manodopera", $excel, 'estimate', '2026-09-20'],
+            ['clutch_every_km', 'Frizione ogni', 150000, 'km', 'stima del tuo Excel', $excel, 'estimate', '2026-09-20'],
+            ['timing_belt_job', 'Cinghia di distribuzione (solo materiale)', 1200, '€', "solo motori a cinghia; valore dell'Excel: verifica che sia senza manodopera", $excel, 'estimate', '2026-09-20'],
+            ['timing_belt_every_years', 'Cinghia ogni', 8, 'anni', 'verificare il motore', $excel, 'estimate', '2026-09-20'],
+            ['lpg_tank_job', 'Serbatoio GPL (con manodopera del meccanico)', 700, '€', 'Excel: sostituzione al 10° anno', $excel, 'estimate', '2026-09-20'],
+            ['lpg_tank_year', 'Serbatoio GPL: sostituzione al', 10, '° anno', 'come nel tuo Excel', $excel, 'estimate', '2026-09-20'],
+            ['battery_12v_price', 'Batteria 12V (solo materiale)', 100, '€', 'media indicata da te', $userNotes, 'estimate', '2026-10-02'],
+            ['battery_12v_every_years', 'Batteria 12V ogni', 3, 'anni', 'indicato da te', $userNotes, 'estimate', '2026-10-02'],
+            ['unexpected_year', 'Imprevisti / piccoli guasti (fondo)', 270, '€/anno', 'Excel: ~4.000 € in 15 anni', $excel, 'estimate', '2026-09-20'],
+            ['revision_price', 'Revisione', 85, '€', 'prima al 4° anno, poi ogni 2', $excel, 'estimate', '2026-09-20'],
+            ['wallbox_price', 'Wallbox installata', 1300, '€', 'solo elettriche/plug-in, se la vuoi', $excel, 'estimate', '2026-09-20'],
+            ['superbollo_eur_kw', 'Superbollo (oltre 185 kW)', 20, '€/kW', 'tributo nazionale, ridotto dopo 5/10/15 anni', $national, 'estimate', '2026-09-20'],
         ];
-        $ins = $pdo->prepare(
-            'INSERT IGNORE INTO ca_parameters (code, label, value_num, unit, note, source_id, confidence, valid_from, sort_order, updated_at)
+        // parametri che non servono più (sostituiti da quelli sopra)
+        $obsolete = ['service_year', 'battery_12v_ac_year'];
+
+        // Inserisco i nuovi; aggiorno quelli che hanno ancora un valore "di partenza" (dall'Excel, dalle tue indicazioni
+        // o mancante). Quelli modificati a mano dalla pagina Impostazioni hanno un'altra fonte: NON li tocco.
+        $seedSources = [$excel, $userNotes, $national];
+        $find = $pdo->prepare('SELECT source_id, confidence FROM ca_parameters WHERE code = ?');
+        $insert = $pdo->prepare(
+            'INSERT INTO ca_parameters (code, label, value_num, unit, note, source_id, confidence, valid_from, sort_order, updated_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        $added = 0;
-        foreach ($P as $i => [$code, $label, $value, $unit, $note, $source, $confidence]) {
-            $ins->execute([$code, $label, $value, $unit, $note, $source, $confidence, $value === null ? null : '2026-09-20', $i, $now]);
-            $added += $ins->rowCount();
+        $update = $pdo->prepare(
+            'UPDATE ca_parameters SET label = ?, value_num = ?, unit = ?, note = ?, source_id = ?, confidence = ?, valid_from = ?, sort_order = ?, updated_at = ?
+              WHERE code = ?'
+        );
+        $keepOrder = $pdo->prepare('UPDATE ca_parameters SET label = ?, unit = ?, sort_order = ? WHERE code = ?');
+        [$added, $updated, $kept] = [0, 0, 0];
+        foreach ($P as $i => [$code, $label, $value, $unit, $note, $source, $confidence, $validFrom]) {
+            $find->execute([$code]);
+            $row = $find->fetch();
+            if ($row === false) {
+                $insert->execute([$code, $label, $value, $unit, $note, $source, $confidence, $validFrom, $i, $now]);
+                $added++;
+            } elseif ($row['source_id'] === null || in_array((int) $row['source_id'], $seedSources, true)) {
+                $update->execute([$label, $value, $unit, $note, $source, $confidence, $validFrom, $i, $now, $code]);
+                $updated += $update->rowCount();
+            } else {
+                $keepOrder->execute([$label, $unit, $i, $code]); // modificato a mano: tengo valore e fonte
+                $kept++;
+            }
         }
-        $log[] = "parametri: $added nuovi (totale " . count($P) . ')';
+        $in = implode(',', array_fill(0, count($obsolete), '?'));
+        $pdo->prepare("DELETE FROM ca_parameters WHERE code IN ($in)")->execute($obsolete);
+        $log[] = "parametri: $added nuovi, $updated aggiornati, $kept modificati a mano e lasciati com'erano";
 
         $message = "Fatto. Ora in config.php metti 'maintenance_key' => '' per disattivare lo script.";
     }

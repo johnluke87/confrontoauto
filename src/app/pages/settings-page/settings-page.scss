@@ -64,3 +64,43 @@ tr:has(+ .nota) td {
 .errore {
   color: var(--mat-sys-error);
 }
+
+// modifica di un parametro (amministratori)
+.modifica {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px;
+
+  .valore {
+    width: 150px;
+  }
+
+  .affidabilita {
+    width: 130px;
+  }
+
+  input {
+    text-align: right;
+  }
+}
+
+.azioni {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.matita {
+  --mat-icon-button-state-layer-size: 28px;
+  width: 28px;
+  height: 28px;
+  padding: 2px;
+  margin-left: 2px;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+}

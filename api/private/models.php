@@ -9,7 +9,7 @@ function handle_list_models(): never
     require_user();
     $brandId = (int) ($_GET['brandId'] ?? 0);
     $stmt = db()->prepare(
-        'SELECT m.id, m.name, m.slug, m.body_type, m.status, m.last_researched_at,
+        'SELECT m.id, m.name, m.slug, m.body_type, m.status, m.last_researched_at, m.research_priority,
                 COUNT(CASE WHEN v.available = 1 THEN v.id END) AS variants,
                 MIN(CASE WHEN v.available = 1 THEN v.list_price_cents END) AS min_price_cents
            FROM ca_models m
@@ -28,6 +28,7 @@ function handle_list_models(): never
         'status'           => $r['status'],
         'lastResearchedAt' => utc_to_iso($r['last_researched_at']),
         'variants'         => (int) $r['variants'],
+        'queued'           => (bool) $r['research_priority'],
         'minPriceCents'    => $r['min_price_cents'] === null ? null : (int) $r['min_price_cents'],
     ], $stmt->fetchAll()));
 }
