@@ -13,6 +13,11 @@ function required(name) {
   return value;
 }
 
+/** Per i secret incollati a mano: via spazi, a capo e apici intorno ('abc' -> abc). */
+function cleanSecret(value) {
+  return value === undefined ? undefined : value.trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+}
+
 function int(name, fallback) {
   const value = Number.parseInt(env(name, String(fallback)), 10);
   return Number.isFinite(value) ? value : fallback;
@@ -24,13 +29,13 @@ export function loadConfig() {
   return {
     // es. https://www.gianlucadario.com/extra/confronto-auto/api
     apiUrl: required('CA_API_URL').replace(/\/+$/, ''),
-    agentToken: required('CA_AGENT_TOKEN'),
+    agentToken: cleanSecret(required('CA_AGENT_TOKEN')),
 
     llm: {
       // 'gemini' (Google AI Studio, piano gratuito) oppure 'openai' = qualsiasi API compatibile (Groq, OpenRouter, Ollama...)
       provider,
       model: env('LLM_MODEL', provider === 'gemini' ? 'gemini-2.5-flash' : undefined),
-      apiKey: env('LLM_API_KEY', env('GEMINI_API_KEY')),
+      apiKey: cleanSecret(env('LLM_API_KEY', env('GEMINI_API_KEY'))),
       baseUrl: env('LLM_BASE_URL', provider === 'gemini' ? 'https://generativelanguage.googleapis.com/v1beta' : undefined),
       // il piano gratuito di Gemini ha un limite di richieste al minuto: meglio non correre
       minIntervalMs: int('LLM_MIN_INTERVAL_MS', provider === 'gemini' ? 7000 : 0),

@@ -46,11 +46,11 @@ jobs:
       BROWSER: playwright
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           sparse-checkout: agent
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -65,7 +65,10 @@ jobs:
             exit 0
           fi
           npm ci --no-audit --no-fund --omit=optional
-          due=$(node src/index.mjs --peek)
+          if ! due=$(node src/index.mjs --peek); then
+            echo "::error::L'API non risponde o rifiuta il token: controlla che il secret CA_AGENT_TOKEN sia uguale ad agent_token di config.php"
+            exit 1
+          fi
           echo "Lavori in scadenza: $due"
           echo "due=$due" >> "$GITHUB_OUTPUT"
 
