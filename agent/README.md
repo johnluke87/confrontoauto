@@ -31,7 +31,7 @@ Repository → Settings → Secrets and variables → Actions:
 | Secret   | `GEMINI_API_KEY` | chiave gratuita da https://aistudio.google.com/apikey                        |
 | Variable | `CA_API_URL`     | (facoltativa) default `https://www.gianlucadario.com/extra/confronto-auto/api` |
 | Variable | `MAX_LLM_CALLS`  | (facoltativa) chiamate all'AI per esecuzione, default 5                       |
-| Variable | `LLM_MODEL`      | (facoltativa) default `gemini-2.5-flash`                                     |
+| Variable | `LLM_MODEL`      | (facoltativa) default `gemini-3.8-flash` (se Google lo ritira, l'agent sceglie da solo il flash più recente)                                     |
 
 Con 48 esecuzioni al giorno e 5 chiamate ciascuna si resta sotto il limite giornaliero gratuito di Gemini.
 Per un altro servizio gratuito compatibile OpenAI (Groq, OpenRouter): `LLM_PROVIDER=openai`,

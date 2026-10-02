@@ -4,7 +4,7 @@
 import { appendFile } from 'node:fs/promises';
 import { Api } from './api.mjs';
 import { loadConfig } from './config.mjs';
-import { BudgetExhausted, Llm, RateLimited } from './llm.mjs';
+import { BudgetExhausted, Llm, LlmUnavailable, RateLimited } from './llm.mjs';
 import { PageFetcher } from './pages.mjs';
 import { researchBrand } from './tasks/brand.mjs';
 import { researchModel } from './tasks/model.mjs';
@@ -60,6 +60,13 @@ async function main() {
           log(`  interrotto: ${error.message}`);
           break;
         }
+        if (error instanceof LlmUnavailable) {
+          // chiave o modello dell'AI non validi: mi fermo e lo segnalo, i lavori restano da fare
+          log(`  AI non utilizzabile: ${error.message}`);
+          summary.push([label, `interrotto · ${error.message}`, '']);
+          process.exitCode = 1;
+          break;
+        }
         log(`  errore: ${error.message}`);
         result = { task: { type: task.type, id: task.id }, ok: false, error: error.message.slice(0, 500) };
       }
@@ -77,7 +84,7 @@ async function main() {
       const response = await api.submit(result);
       const problems = (response.issues ?? []).length;
       log(`  -> ${response.status}${problems ? `, ${problems} segnalazioni` : ''}`);
-      summary.push([label, response.status, problems]);
+      summary.push([label, result.ok ? response.status : `${response.status} · ${result.error}`, problems]);
     }
   } finally {
     await pages.close();
@@ -86,7 +93,9 @@ async function main() {
   log(`Fatto: ${summary.length} lavori, ${llm.calls} chiamate all'AI`);
   // riepilogo nella pagina dell'esecuzione su GitHub
   if (process.env.GITHUB_STEP_SUMMARY) {
-    const rows = summary.map((r) => `| ${r.join(' | ')} |`).join('\n');
+    // una cella di tabella Markdown: niente a capo né "|", e non troppo lunga
+    const cell = (value) => String(value).replace(/\s+/g, ' ').replace(/\|/g, '/').slice(0, 300);
+    const rows = summary.map((r) => `| ${r.map(cell).join(' | ')} |`).join('\n');
     await appendFile(process.env.GITHUB_STEP_SUMMARY, `| Lavoro | Esito | Segnalazioni |\n|---|---|---|\n${rows}\n\nChiamate all'AI: ${llm.calls}\n`);
   }
 }

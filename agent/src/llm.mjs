@@ -2,6 +2,8 @@
 
 export class BudgetExhausted extends Error {}
 export class RateLimited extends Error {}
+// chiave sbagliata, modello inesistente...: non è colpa del sito, inutile segnare il lavoro come fallito
+export class LlmUnavailable extends Error {}
 
 export class Llm {
   constructor(config, maxCalls, log) {
@@ -53,8 +55,39 @@ export class Llm {
       if (response.status === 429) {
         throw new RateLimited(`Limite dell'AI raggiunto: ${body}`);
       }
-      throw new Error(`AI: HTTP ${response.status} ${body}`);
+      // modello ritirato (Google li cambia spesso): cerco il "flash" più recente e riprovo una volta
+      if (response.status === 404 && this.config.provider === 'gemini' && !this.switchedModel) {
+        this.switchedModel = true;
+        const newer = await this.latestGeminiFlash();
+        if (newer && newer !== this.config.model) {
+          this.log(`AI: il modello ${this.config.model} non è disponibile, uso ${newer}`);
+          this.config.model = newer;
+          continue;
+        }
+      }
+      if (response.status >= 400 && response.status < 500) {
+        throw new LlmUnavailable(`AI: HTTP ${response.status} ${body.replace(/\s+/g, ' ')}`);
+      }
+      throw new Error(`AI: HTTP ${response.status} ${body.replace(/\s+/g, ' ')}`);
     }
+  }
+
+  /** Il modello Gemini "flash" con il numero di versione più alto tra quelli disponibili per questa chiave. */
+  async latestGeminiFlash() {
+    const response = await fetch(`${this.config.baseUrl}/models?pageSize=1000`, {
+      headers: { 'x-goog-api-key': this.config.apiKey },
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const { models = [] } = await response.json();
+    const candidates = models
+      .filter((m) => (m.supportedGenerationMethods ?? []).includes('generateContent'))
+      .map((m) => ({ id: m.name.replace(/^models\//, ''), version: /^gemini-(\d+(?:\.\d+)?)-flash$/.exec(m.name.replace(/^models\//, ''))?.[1] }))
+      .filter((m) => m.version)
+      .sort((a, b) => Number(b.version) - Number(a.version));
+    return candidates[0]?.id ?? null;
   }
 
   callGemini(prompt) {

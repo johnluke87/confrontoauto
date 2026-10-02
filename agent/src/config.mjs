@@ -34,7 +34,7 @@ export function loadConfig() {
     llm: {
       // 'gemini' (Google AI Studio, piano gratuito) oppure 'openai' = qualsiasi API compatibile (Groq, OpenRouter, Ollama...)
       provider,
-      model: env('LLM_MODEL', provider === 'gemini' ? 'gemini-2.5-flash' : undefined),
+      model: env('LLM_MODEL', provider === 'gemini' ? 'gemini-3.8-flash' : undefined),
       apiKey: cleanSecret(env('LLM_API_KEY', env('GEMINI_API_KEY'))),
       baseUrl: env('LLM_BASE_URL', provider === 'gemini' ? 'https://generativelanguage.googleapis.com/v1beta' : undefined),
       // il piano gratuito di Gemini ha un limite di richieste al minuto: meglio non correre
