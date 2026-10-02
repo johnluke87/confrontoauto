@@ -48,3 +48,6 @@ Thumbs.db
 /api/private/logs/*.log
 
 /agent/node_modules
+
+# configurazione locale di Claude Code
+/.claude/
