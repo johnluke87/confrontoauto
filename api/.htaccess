@@ -1,0 +1,9 @@
+# Niente elenco dei file se qualcuno apre una cartella.
+# (Se TUTTA l'API risponde "500 Internal Server Error", togli questa riga: alcuni hosting non la permettono.)
+Options -Indexes
+
+RewriteEngine On
+# Ogni richiesta che non corrisponde a un file esistente va a index.php
+# (es. /api/health, /api/tasks/5). I file in private/ restano bloccati dal loro .htaccess.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [QSA,L]

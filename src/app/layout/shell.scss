@@ -1,0 +1,50 @@
+.barra {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  gap: 8px;
+  height: 52px;
+  padding: 0 12px;
+  background: var(--mat-sys-surface-container);
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+nav {
+  display: flex;
+  gap: 2px;
+  margin-left: 12px;
+}
+
+.attivo {
+  background: var(--mat-sys-secondary-container);
+}
+
+.spazio {
+  flex: 1;
+}
+
+.contenuto {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px 12px 32px;
+}
+
+// su telefono: solo l'icona, il nome occuperebbe troppo
+@media (max-width: 520px) {
+  .logo span {
+    display: none;
+  }
+  nav {
+    margin-left: 0;
+  }
+}

@@ -1,0 +1,196 @@
+@if (model.isLoading() && !model.hasValue()) {
+  <p>Caricamento…</p>
+} @else if (model.error()) {
+  <p class="errore">Modello non trovato.</p>
+} @else if (model.hasValue()) {
+  @let m = model.value();
+  @let src = sources();
+
+  <a mat-button class="indietro" [routerLink]="['/catalog']" [queryParams]="{ brand: m.brandId }">
+    <mat-icon>arrow_back</mat-icon> {{ m.brand }}
+  </a>
+
+  <header>
+    <h1>{{ m.brand }} {{ m.name }}</h1>
+    <p class="sotto">
+      {{ m.bodyType ? bodyTypes[m.bodyType] : '' }}
+      @if (m.generation) {
+        · {{ m.generation }}
+      }
+      @if (m.status === 'discontinued') {
+        · <strong>fuori produzione</strong>
+      }
+      · {{ m.lastResearchedAt ? 'aggiornato il ' + (m.lastResearchedAt | date: 'd/M/yyyy') : 'mai ricercato' }}
+      @if (m.officialUrl) {
+        · <a [href]="m.officialUrl" target="_blank" rel="noopener noreferrer">sito ufficiale</a>
+      }
+    </p>
+  </header>
+
+  <section>
+    <div class="titolo-sezione">
+      <h2>Versioni</h2>
+      @if (unavailableCount()) {
+        <mat-slide-toggle [checked]="showUnavailable()" (change)="showUnavailable.set($event.checked)">
+          anche le {{ unavailableCount() }} non più a listino
+        </mat-slide-toggle>
+      }
+    </div>
+    @if (rows().length) {
+      <div class="scorre">
+        <table>
+          <thead>
+            <tr>
+              <th>Allestimento</th>
+              <th>Motore</th>
+              <th>Alimentazione</th>
+              <th class="num">Potenza</th>
+              <th>Cambio</th>
+              <th class="num">Consumo WLTP</th>
+              <th class="num">CO₂</th>
+              <th class="num">Listino</th>
+              <th class="num">Chiavi in mano</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of rows(); track r.variant.id) {
+              @let pt = r.powertrain;
+              @let v = r.variant;
+              <tr [class.spenta]="!v.available">
+                <td>{{ r.trim }}</td>
+                <td>{{ pt.name }}</td>
+                <td><app-sourced [p]="pt.provenance['fuel']" [sources]="src">{{ fuels[pt.fuel] }}</app-sourced></td>
+                <td class="num">
+                  <app-sourced [p]="pt.provenance['powerKw']" [sources]="src">
+                    {{ pt.powerKw }} kW{{ pt.powerCv ? ' (' + pt.powerCv + ' CV)' : '' }}
+                  </app-sourced>
+                </td>
+                <td>
+                  <app-sourced [p]="pt.provenance['gearbox']" [sources]="src">
+                    {{ pt.gearbox === 'manual' ? 'manuale' : 'automatico' }}{{ pt.gears ? ' ' + pt.gears + ' marce' : '' }}
+                  </app-sourced>
+                </td>
+                <td class="num">
+                  <app-sourced [p]="pt.provenance['consumptionWltp']" [sources]="src">
+                    {{ pt.consumptionWltp | number: '1.1-2' }} {{ consumptionUnit(pt) }}
+                  </app-sourced>
+                </td>
+                <td class="num"><app-sourced [p]="pt.provenance['co2GKm']" [sources]="src">{{ pt.co2GKm }} g/km</app-sourced></td>
+                <td class="num">
+                  <app-sourced [p]="v.provenance['listPriceCents']" [sources]="src">
+                    {{ v.listPriceCents! / 100 | currency: 'EUR' : 'symbol' : '1.0-0' }}
+                  </app-sourced>
+                </td>
+                <td class="num">
+                  <app-sourced [p]="v.provenance['onRoadCents']" [sources]="src">
+                    {{ v.onRoadCents! / 100 | currency: 'EUR' : 'symbol' : '1.0-0' }}
+                  </app-sourced>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class="vuoto">Nessuna versione in archivio.</p>
+    }
+  </section>
+
+  @if (dimensions(); as d) {
+    <section>
+      <h2>Misure</h2>
+      <dl class="misure">
+        <div><dt>Lunghezza</dt><dd><app-sourced [p]="d.provenance['lengthMm']" [sources]="src">{{ d.lengthMm | number }} mm</app-sourced></dd></div>
+        <div><dt>Larghezza</dt><dd><app-sourced [p]="d.provenance['widthMm']" [sources]="src">{{ d.widthMm | number }} mm</app-sourced></dd></div>
+        <div><dt>Altezza</dt><dd><app-sourced [p]="d.provenance['heightMm']" [sources]="src">{{ d.heightMm | number }} mm</app-sourced></dd></div>
+        <div><dt>Passo</dt><dd><app-sourced [p]="d.provenance['wheelbaseMm']" [sources]="src">{{ d.wheelbaseMm | number }} mm</app-sourced></dd></div>
+        <div><dt>Bagagliaio</dt><dd><app-sourced [p]="d.provenance['trunkL']" [sources]="src">{{ d.trunkL }} l</app-sourced></dd></div>
+        <div><dt>Posti</dt><dd><app-sourced [p]="d.provenance['seats']" [sources]="src">{{ d.seats }}</app-sourced></dd></div>
+      </dl>
+    </section>
+  }
+
+  @if (featureMatrix().length) {
+    <section>
+      <h2>Dotazioni</h2>
+      <div class="scorre">
+        <table class="matrice">
+          <thead>
+            <tr>
+              <th></th>
+              @for (t of m.trims; track t.id) {
+                <th>{{ t.name }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of featureMatrix(); track row.name) {
+              <tr>
+                <td>{{ row.name }}</td>
+                @for (cell of row.cells; track $index) {
+                  <td class="cella">
+                    @if (cell) {
+                      @switch (cell.availability) {
+                        @case ('standard') {
+                          <mat-icon class="si" aria-label="di serie">check</mat-icon>
+                        }
+                        @case ('optional') {
+                          {{ cell.priceCents !== null ? (cell.priceCents / 100 | currency: 'EUR' : 'symbol' : '1.0-0') : 'optional' }}
+                        }
+                        @case ('package') {
+                          <span class="pack">{{ packageName(cell.packageId) }}</span>
+                        }
+                        @default {
+                          <span class="no">non disp.</span>
+                        }
+                      }
+                      <app-confidence-badge [confidence]="cell.confidence" [source]="cell.sourceId !== null ? src.get(cell.sourceId) : null" />
+                    } @else {
+                      <span class="no">?</span>
+                    }
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="legenda"><mat-icon class="si">check</mat-icon> di serie · prezzo = optional · nome = in un pacchetto · ? = non sappiamo</p>
+    </section>
+  }
+
+  @if (m.packages.length) {
+    <section>
+      <h2>Pacchetti</h2>
+      <ul class="pacchetti">
+        @for (p of m.packages; track p.id) {
+          <li>
+            <strong>{{ p.name }}</strong>
+            @if (p.priceCents !== null) {
+              {{ p.priceCents / 100 | currency: 'EUR' : 'symbol' : '1.0-0' }}
+            }
+            <app-confidence-badge [confidence]="p.confidence" [source]="p.sourceId !== null ? src.get(p.sourceId) : null" />
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  <section>
+    <h2>Fonti</h2>
+    <ul class="fonti">
+      @for (s of m.sources; track s.id) {
+        <li>
+          @if (s.url) {
+            <a [href]="s.url" target="_blank" rel="noopener noreferrer">{{ s.title }}</a>
+          } @else {
+            {{ s.title }}
+          }
+          <span class="data">letta il {{ s.fetchedAt | date: 'd/M/yyyy' }}</span>
+        </li>
+      } @empty {
+        <li class="vuoto">Nessuna fonte.</li>
+      }
+    </ul>
+  </section>
+}

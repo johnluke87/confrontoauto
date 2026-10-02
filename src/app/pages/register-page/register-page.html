@@ -1,0 +1,60 @@
+<main class="contenitore">
+  <mat-card appearance="outlined" class="scheda">
+    <mat-card-header>
+      <mat-card-title>Confronto auto</mat-card-title>
+      <mat-card-subtitle>Crea il tuo account</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form [formGroup]="form" (ngSubmit)="submit()">
+        <mat-form-field appearance="outline">
+          <mat-label>Nome utente</mat-label>
+          <input matInput formControlName="username" autocomplete="username" />
+          <mat-hint>Lettere, numeri, punto, trattino o underscore</mat-hint>
+          <mat-error>Da 3 a 50 caratteri: lettere, numeri, . - _</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Password</mat-label>
+          <input
+            matInput
+            formControlName="password"
+            [type]="hidePassword() ? 'password' : 'text'"
+            autocomplete="new-password"
+          />
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            (click)="hidePassword.set(!hidePassword())"
+            [attr.aria-label]="hidePassword() ? 'Mostra password' : 'Nascondi password'"
+          >
+            <mat-icon>{{ hidePassword() ? 'visibility' : 'visibility_off' }}</mat-icon>
+          </button>
+          <mat-hint>Almeno {{ passwordMin }} caratteri</mat-hint>
+          <mat-error>Almeno {{ passwordMin }} caratteri</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Ripeti la password</mat-label>
+          <input matInput formControlName="confirm" [type]="hidePassword() ? 'password' : 'text'" autocomplete="new-password" />
+          <mat-error>Ripeti la password</mat-error>
+        </mat-form-field>
+
+        <!-- l'errore "password diverse" è del GRUPPO, non di un campo: lo mostro a parte -->
+        @if (form.hasError('mismatch') && form.controls.confirm.touched) {
+          <p class="errore">Le due password non coincidono</p>
+        }
+
+        @if (errorMessage(); as message) {
+          <p class="errore" role="alert">{{ message }}</p>
+        }
+
+        <button mat-flat-button type="submit" [disabled]="submitting()">
+          {{ submitting() ? 'Creazione…' : 'Crea account' }}
+        </button>
+        <a mat-button routerLink="/login">Hai già un account? Accedi</a>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</main>

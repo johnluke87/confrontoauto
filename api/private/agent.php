@@ -1,0 +1,186 @@
+<?php
+declare(strict_types=1);
+
+/*
+ * Le rotte usate dal Research agent (il programma che gira su GitHub Actions, vedi la cartella agent/).
+ * Non usa cookie né account: si presenta con l'header X-Agent-Token = 'agent_token' di config.php.
+ *
+ *   GET  /agent/work?limit=3     cosa ricercare adesso (e lo "prenota" per 2 ore)
+ *   GET  /agent/work?peek=1      solo quanti lavori sono in scadenza (per non avviare il browser se non c'è niente)
+ *   POST /agent/results          il risultato di un lavoro: viene verificato e salvato, o messo da rivedere
+ */
+
+const AGENT_CLAIM_MINUTES = 120;
+const AGENT_MAX_BODY_BYTES = 2 * 1024 * 1024;
+// dopo un errore (sito irraggiungibile, risposta non valida) si riprova tra una settimana, non tra mezz'ora
+const AGENT_RETRY_DAYS = 7;
+
+function require_agent(): void
+{
+    $token = (string) (config()['agent_token'] ?? '');
+    $given = $_SERVER['HTTP_X_AGENT_TOKEN'] ?? '';
+    if (strlen($token) < 32 || !is_string($given) || !hash_equals($token, $given)) {
+        // conto solo i tentativi sbagliati: chi prova a indovinare il token si blocca presto
+        enforce_rate_limit('agent_fail', 20, 3600);
+        throw new HttpException(401, 'Token del Research agent non valido');
+    }
+}
+
+function research_interval_days(): int
+{
+    return max(1, (int) (config()['research_interval_days'] ?? 30));
+}
+
+/** GET /agent/work */
+function handle_agent_work(): never
+{
+    require_agent();
+    $limit = max(1, min(20, (int) ($_GET['limit'] ?? 3)));
+    $now = now_utc();
+    $claimFreeBefore = gmdate('Y-m-d H:i:s', time() - AGENT_CLAIM_MINUTES * 60);
+
+    // in scadenza = mai ricercato, oppure è arrivata la data della prossima ricerca
+    $brandWhere = 'b.enabled = 1 AND b.official_url IS NOT NULL
+                   AND (b.next_research_at IS NULL OR b.next_research_at <= ?)
+                   AND (b.research_claimed_at IS NULL OR b.research_claimed_at < ?)';
+    $modelWhere = "b.enabled = 1 AND m.status = 'active'
+                   AND (m.next_research_at IS NULL OR m.next_research_at <= ?)
+                   AND (m.research_claimed_at IS NULL OR m.research_claimed_at < ?)";
+    $params = [$now, $claimFreeBefore];
+
+    if (isset($_GET['peek'])) {
+        $brands = db()->prepare("SELECT COUNT(*) FROM ca_brands b WHERE $brandWhere");
+        $brands->execute($params);
+        $models = db()->prepare("SELECT COUNT(*) FROM ca_models m JOIN ca_brands b ON b.id = m.brand_id WHERE $modelWhere");
+        $models->execute($params);
+        json_response(['due' => (int) $brands->fetchColumn() + (int) $models->fetchColumn()]);
+    }
+
+    // prima i marchi (da lì arrivano i modelli), poi i modelli; i mai ricercati per primi
+    $stmt = db()->prepare(
+        "SELECT b.id, b.name, b.official_url FROM ca_brands b WHERE $brandWhere
+          ORDER BY b.next_research_at IS NOT NULL, b.next_research_at, b.name LIMIT $limit"
+    );
+    $stmt->execute($params);
+    $brands = $stmt->fetchAll();
+
+    $models = [];
+    $left = $limit - count($brands);
+    if ($left > 0) {
+        $stmt = db()->prepare(
+            "SELECT m.id, m.name, m.official_url, b.id AS brand_id, b.name AS brand, b.official_url AS brand_url
+               FROM ca_models m JOIN ca_brands b ON b.id = m.brand_id
+              WHERE $modelWhere
+              ORDER BY m.next_research_at IS NOT NULL, m.next_research_at, m.id LIMIT $left"
+        );
+        $stmt->execute($params);
+        $models = $stmt->fetchAll();
+    }
+
+    $tasks = [];
+    $known = db()->prepare("SELECT name FROM ca_models WHERE brand_id = ? AND status = 'active' ORDER BY name");
+    foreach ($brands as $b) {
+        $known->execute([$b['id']]);
+        $tasks[] = [
+            'type'        => 'brand',
+            'id'          => (int) $b['id'],
+            'brand'       => $b['name'],
+            'url'         => $b['official_url'],
+            'knownModels' => $known->fetchAll(PDO::FETCH_COLUMN),
+        ];
+    }
+    foreach ($models as $m) {
+        $tasks[] = [
+            'type'     => 'model',
+            'id'       => (int) $m['id'],
+            'brandId'  => (int) $m['brand_id'],
+            'brand'    => $m['brand'],
+            'model'    => $m['name'],
+            'url'      => $m['official_url'],
+            'brandUrl' => $m['brand_url'],
+        ];
+    }
+
+    // prenoto: per 2 ore nessun'altra esecuzione riceve gli stessi lavori
+    $now = now_utc();
+    foreach ([['ca_brands', array_column($brands, 'id')], ['ca_models', array_column($models, 'id')]] as [$table, $ids]) {
+        if ($ids !== []) {
+            $in = implode(',', array_fill(0, count($ids), '?'));
+            db()->prepare("UPDATE $table SET research_claimed_at = ? WHERE id IN ($in)")->execute([$now, ...$ids]);
+        }
+    }
+
+    $features = db()->query('SELECT code, name, category FROM ca_features ORDER BY sort_order')->fetchAll();
+    json_response(['tasks' => $tasks, 'features' => $features]);
+}
+
+/**
+ * POST /agent/results
+ *   { "task": {"type": "model", "id": 12}, "ok": true, "sources": [...], ... }   vedi imports.php per il formato
+ *   { "task": {"type": "brand", "id": 3}, "ok": false, "error": "HTTP 403 dal sito" }
+ */
+function handle_agent_results(): never
+{
+    require_agent();
+    $body = read_json_body(AGENT_MAX_BODY_BYTES);
+
+    $task = $body['task'] ?? null;
+    $type = is_array($task) ? ($task['type'] ?? null) : null;
+    $id = is_array($task) ? ($task['id'] ?? null) : null;
+    if (!in_array($type, ['brand', 'model'], true) || !is_int($id)) {
+        throw new HttpException(400, 'Serve "task": {"type": "brand" | "model", "id": numero}');
+    }
+
+    if ($type === 'brand') {
+        $stmt = db()->prepare('SELECT id FROM ca_brands WHERE id = ?');
+        $stmt->execute([$id]);
+        $brandId = $stmt->fetchColumn();
+        $modelId = null;
+    } else {
+        $stmt = db()->prepare('SELECT brand_id FROM ca_models WHERE id = ?');
+        $stmt->execute([$id]);
+        $brandId = $stmt->fetchColumn();
+        $modelId = $id;
+    }
+    if ($brandId === false) {
+        throw new HttpException(404, 'Marchio o modello inesistente');
+    }
+
+    db()->prepare(
+        'INSERT INTO ca_imports (task_type, brand_id, model_id, payload, status, received_at) VALUES (?, ?, ?, ?, ?, ?)'
+    )->execute([
+        $type,
+        (int) $brandId,
+        $modelId,
+        json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+        'pending',
+        now_utc(),
+    ]);
+    $importId = (int) db()->lastInsertId();
+
+    if (($body['ok'] ?? true) === false) {
+        $error = is_string($body['error'] ?? null) ? mb_substr($body['error'], 0, 500) : 'errore non specificato';
+        finish_import($importId, 'failed', [['level' => 'error', 'message' => "L'agent non ci è riuscito: $error"]]);
+        schedule_research($type, $id, AGENT_RETRY_DAYS);
+        json_response(['importId' => $importId, 'status' => 'failed']);
+    }
+
+    $result = process_import($importId);
+    json_response(['importId' => $importId, 'status' => $result['status'], 'issues' => $result['issues']]);
+}
+
+/** Dati nuovi salvati in archivio: "aggiornato adesso", la prossima ricerca tra un mese. */
+function mark_researched(string $type, int $id): void
+{
+    $table = $type === 'brand' ? 'ca_brands' : 'ca_models';
+    db()->prepare("UPDATE $table SET last_researched_at = ?, next_research_at = ?, research_claimed_at = NULL WHERE id = ?")
+        ->execute([now_utc(), gmdate('Y-m-d H:i:s', time() + research_interval_days() * 86400), $id]);
+}
+
+/** Nessun dato nuovo in archivio (errore, scartato, in revisione): si riprova tra $days giorni. */
+function schedule_research(string $type, int $id, int $days): void
+{
+    $table = $type === 'brand' ? 'ca_brands' : 'ca_models';
+    db()->prepare("UPDATE $table SET next_research_at = ?, research_claimed_at = NULL WHERE id = ?")
+        ->execute([gmdate('Y-m-d H:i:s', time() + $days * 86400), $id]);
+}

@@ -1,0 +1,19 @@
+{
+  "name": "confronto-auto-agent",
+  "private": true,
+  "description": "Research agent di Confronto auto: legge i siti ufficiali delle case e manda i dati all'API",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/index.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "unpdf": "^1.8.1"
+  },
+  "optionalDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

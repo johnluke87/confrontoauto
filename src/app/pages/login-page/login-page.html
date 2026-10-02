@@ -1,0 +1,48 @@
+<main class="contenitore">
+    <mat-card appearance="outlined" class="scheda">
+      <mat-card-header>
+        <mat-card-title>Confronto auto</mat-card-title>
+        <mat-card-subtitle>Accedi per continuare</mat-card-subtitle>
+      </mat-card-header>
+  
+      <mat-card-content>
+        <form [formGroup]="form" (ngSubmit)="submit()">
+          <mat-form-field appearance="outline">
+            <mat-label>Utente</mat-label>
+            <input matInput formControlName="username" autocomplete="username" />
+            <mat-error>Inserisci il nome utente</mat-error>
+          </mat-form-field>
+  
+          <mat-form-field appearance="outline">
+            <mat-label>Password</mat-label>
+            <input
+              matInput
+              formControlName="password"
+              [type]="hidePassword() ? 'password' : 'text'"
+              autocomplete="current-password"
+            />
+            <button
+              mat-icon-button
+              matSuffix
+              type="button"
+              (click)="hidePassword.set(!hidePassword())"
+              [attr.aria-label]="hidePassword() ? 'Mostra password' : 'Nascondi password'"
+            >
+              <mat-icon>{{ hidePassword() ? 'visibility' : 'visibility_off' }}</mat-icon>
+            </button>
+            <mat-error>Inserisci la password</mat-error>
+          </mat-form-field>
+  
+          @if (errorMessage(); as message) {
+            <p class="errore" role="alert">{{ message }}</p>
+          }
+  
+          <button mat-flat-button type="submit" [disabled]="submitting()">
+            {{ submitting() ? 'Accesso…' : 'Accedi' }}
+          </button>
+          <!-- routerLink: un link "interno" all'app, cambia pagina senza ricaricare tutto -->
+          <a mat-button routerLink="/register">Non hai un account? Registrati</a>
+        </form>
+      </mat-card-content>
+    </mat-card>
+  </main>

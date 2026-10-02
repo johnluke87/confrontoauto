@@ -1,0 +1,49 @@
+<h1>Marchi</h1>
+<p class="spiegazione">
+  I marchi attivi sono quelli che l'aggiornamento automatico controlla ogni mese (listini, versioni, dotazioni).
+  Disattivane qualcuno per risparmiare richieste: i dati già in archivio restano.
+</p>
+
+<div class="barra">
+  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+    <mat-label>Cerca marchio</mat-label>
+    <input matInput [value]="filter()" (input)="filter.set($any($event.target).value)" autocomplete="off" />
+    <mat-icon matSuffix>search</mat-icon>
+  </mat-form-field>
+  <span class="conteggio">{{ enabledCount() }} attivi su {{ brands.hasValue() ? brands.value().length : 0 }}</span>
+  <button mat-button (click)="setAllVisible(true)" [disabled]="saving()">Attiva tutti</button>
+  <button mat-button (click)="setAllVisible(false)" [disabled]="saving()">Disattiva tutti</button>
+</div>
+
+@if (saveError(); as message) {
+  <p class="errore" role="alert">{{ message }}</p>
+}
+
+@if (brands.isLoading() && !brands.hasValue()) {
+  <p>Caricamento…</p>
+} @else if (brands.error()) {
+  <p class="errore">Non riesco a leggere i marchi.</p>
+} @else {
+  <ul class="griglia">
+    @for (brand of visible(); track brand.id) {
+      <li [class.spento]="!brand.enabled">
+        <mat-checkbox [checked]="brand.enabled" (change)="toggle(brand, $event.checked)" [disabled]="saving()">
+          {{ brand.name }}
+        </mat-checkbox>
+        <span class="dettagli">
+          {{ brand.models }} modelli ·
+          @if (brand.lastResearchedAt) {
+            aggiornato {{ brand.lastResearchedAt | date: 'd/M/yy' }}
+          } @else {
+            mai aggiornato
+          }
+          @if (brand.officialUrl) {
+            · <a [href]="brand.officialUrl" target="_blank" rel="noopener noreferrer">sito</a>
+          }
+        </span>
+      </li>
+    } @empty {
+      <li>Nessun marchio trovato.</li>
+    }
+  </ul>
+}

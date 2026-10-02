@@ -1,0 +1,17 @@
+h1 {
+  font-size: 1.25rem;
+  font-weight: 500;
+  margin: 0 0 12px;
+}
+
+mat-card {
+  max-width: 560px;
+}
+
+.numeri {
+  padding-left: 18px;
+}
+
+.errore {
+  color: var(--mat-sys-error);
+}

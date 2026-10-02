@@ -1,0 +1,53 @@
+<h1>Revisione dati</h1>
+<p class="spiegazione">
+  Ogni risultato del Research agent passa di qui. Quelli puliti finiscono subito in archivio; quelli con qualcosa di
+  strano (prezzi cambiati molto, modelli spariti, troppi dati scartati, nessuna fonte ufficiale) aspettano te.
+</p>
+
+<mat-button-toggle-group [value]="status()" (change)="changeStatus($event.value)" aria-label="Stato" hideSingleSelectionIndicator>
+  @for (s of statuses; track s.value) {
+    <mat-button-toggle [value]="s.value">
+      {{ s.label }}
+      @if (list.hasValue() && list.value().counts[s.value]; as n) {
+        <span class="conteggio">{{ n }}</span>
+      }
+    </mat-button-toggle>
+  }
+</mat-button-toggle-group>
+
+@if (list.isLoading() && !list.hasValue()) {
+  <p>Caricamento…</p>
+} @else if (list.error()) {
+  <p class="errore">Non riesco a leggere gli import.</p>
+} @else if (list.hasValue()) {
+  <ul class="elenco">
+    @for (item of list.value().items; track item.id) {
+      <li [class.aperto]="expandedId() === item.id">
+        <button class="riga" type="button" (click)="toggle(item.id)" [attr.aria-expanded]="expandedId() === item.id">
+          <mat-icon>{{ item.taskType === 'brand' ? 'format_list_bulleted' : 'directions_car' }}</mat-icon>
+          <span class="titolo">
+            {{ item.taskType === 'brand' ? 'Gamma ' + item.brand : item.brand + ' ' + item.model }}
+          </span>
+          <span class="segnali">
+            @if (item.errors) {
+              <span class="segnale errore">{{ item.errors }} errori</span>
+            }
+            @if (item.reviews) {
+              <span class="segnale review">{{ item.reviews }} da controllare</span>
+            }
+            @if (item.warnings) {
+              <span class="segnale">{{ item.warnings }} avvisi</span>
+            }
+          </span>
+          <span class="data">{{ item.receivedAt | date: 'd/M HH:mm' }}</span>
+          <mat-icon class="freccia">{{ expandedId() === item.id ? 'expand_less' : 'expand_more' }}</mat-icon>
+        </button>
+        @if (expandedId() === item.id) {
+          <app-import-detail [importId]="item.id" (decided)="onDecided()" />
+        }
+      </li>
+    } @empty {
+      <li class="vuoto">Niente qui.</li>
+    }
+  </ul>
+}

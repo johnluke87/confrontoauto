@@ -1,0 +1,46 @@
+<h1>Archivio</h1>
+
+<mat-form-field appearance="outline" subscriptSizing="dynamic">
+  <mat-label>Marchio</mat-label>
+  <mat-select [value]="brandId()" (selectionChange)="selectBrand($event.value)" [disabled]="!brands.hasValue()">
+    @for (b of sortedBrands(); track b.id) {
+      <mat-option [value]="b.id">{{ b.name }} ({{ b.models }})</mat-option>
+    }
+  </mat-select>
+</mat-form-field>
+
+@if (!brandId()) {
+  <p class="suggerimento">Scegli un marchio per vedere i modelli in archivio.</p>
+} @else if (models.isLoading()) {
+  <p>Caricamento…</p>
+} @else if (models.error()) {
+  <p class="errore">Non riesco a leggere i modelli.</p>
+} @else if (models.hasValue()) {
+  <ul class="modelli">
+    @for (m of models.value(); track m.id) {
+      <li [class.fuori]="m.status === 'discontinued'">
+        <a [routerLink]="['/catalog/model', m.id]">
+          <span class="nome">{{ m.name }}</span>
+          <span class="tipo">{{ m.bodyType ? bodyTypes[m.bodyType] : '' }}</span>
+          <span class="prezzo">
+            @if (m.minPriceCents !== null) {
+              da {{ m.minPriceCents / 100 | currency: 'EUR' : 'symbol' : '1.0-0' }}
+            }
+          </span>
+          <span class="dettagli">
+            {{ m.variants }} versioni ·
+            @if (m.status === 'discontinued') {
+              fuori produzione
+            } @else if (m.lastResearchedAt) {
+              aggiornato {{ m.lastResearchedAt | date: 'd/M/yy' }}
+            } @else {
+              in attesa di ricerca
+            }
+          </span>
+        </a>
+      </li>
+    } @empty {
+      <li class="vuoto">Nessun modello in archivio per questo marchio (ancora).</li>
+    }
+  </ul>
+}

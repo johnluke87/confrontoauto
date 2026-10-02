@@ -1,0 +1,106 @@
+@if (detail.isLoading() && !detail.hasValue()) {
+  <p class="stato">Caricamento…</p>
+} @else if (detail.hasValue()) {
+  @let d = detail.value();
+  @let p = d.payload;
+
+  @if (issues().blocking.length) {
+    <ul class="problemi">
+      @for (issue of issues().blocking; track $index) {
+        <li [class]="issue.level">{{ issue.message }}</li>
+      }
+    </ul>
+  }
+
+  @if (d.status === 'review') {
+    <div class="azioni">
+      <button mat-flat-button (click)="approve()" [disabled]="busy()">Approva e salva</button>
+      <button mat-stroked-button (click)="reject()" [disabled]="busy()">Scarta</button>
+      <span class="nota">Approvando, i dati già scartati (vedi avvisi) restano scartati.</span>
+    </div>
+    @if (actionError(); as message) {
+      <p class="errore" role="alert">{{ message }}</p>
+    }
+  }
+  @if (d.status === 'applied' && d.modelId) {
+    <p><a mat-button [routerLink]="['/catalog/model', d.modelId]">Vedi la scheda in archivio</a></p>
+  }
+
+  <h3>Fonti</h3>
+  <ol class="fonti" start="0">
+    @for (s of p.sources ?? []; track $index) {
+      <li><a [href]="s.url" target="_blank" rel="noopener noreferrer">{{ s.title }}</a> <span class="tipo">{{ s.kind }}</span></li>
+    }
+  </ol>
+
+  @if (d.taskType === 'brand') {
+    <h3>Modelli trovati ({{ p.models?.length ?? 0 }})</h3>
+    <p class="modelli">
+      @for (m of p.models ?? []; track m.name) {
+        <span class="modello" [matTooltip]="'«' + m.q + '»'">{{ m.name }}</span>
+      }
+    </p>
+  } @else {
+    @if (p.powertrains?.length) {
+      <h3>Motorizzazioni ({{ p.powertrains!.length }})</h3>
+      <table>
+        <thead>
+          <tr><th>Motore</th><th>Alimentazione</th><th class="num">kW</th><th class="num">CV</th><th class="num">Consumo</th></tr>
+        </thead>
+        <tbody>
+          @for (pt of p.powertrains; track pt.name) {
+            <tr>
+              <td>{{ pt.name }}</td>
+              <td [class.scartato]="droppedPowertrain(pt.name, 'fuel')" [matTooltip]="quote(pt['fuel'])">{{ v(pt['fuel']) ?? '—' }}</td>
+              <td class="num" [class.scartato]="droppedPowertrain(pt.name, 'powerKw')" [matTooltip]="quote(pt['powerKw'])">{{ v(pt['powerKw']) ?? '—' }}</td>
+              <td class="num" [class.scartato]="droppedPowertrain(pt.name, 'powerCv')" [matTooltip]="quote(pt['powerCv'])">{{ v(pt['powerCv']) ?? '—' }}</td>
+              <td class="num" [class.scartato]="droppedPowertrain(pt.name, 'consumptionWltp')" [matTooltip]="quote(pt['consumptionWltp'])">{{ num(pt['consumptionWltp']) | number: '1.1-2' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+    @if (p.variants?.length) {
+      <h3>Versioni ({{ p.variants!.length }})</h3>
+      <table>
+        <thead>
+          <tr><th>Allestimento</th><th>Motore</th><th class="num">Listino</th><th class="num">Chiavi in mano</th></tr>
+        </thead>
+        <tbody>
+          @for (variant of p.variants; track $index) {
+            <tr>
+              <td>{{ variant.trim }}</td>
+              <td>{{ variant.powertrain }}</td>
+              <td class="num" [class.scartato]="droppedVariant(variant.trim, variant.powertrain, 'listPrice')" [matTooltip]="quote(variant.listPrice)">
+                {{ num(variant.listPrice) | currency: 'EUR' : 'symbol' : '1.0-0' }}
+              </td>
+              <td class="num" [class.scartato]="droppedVariant(variant.trim, variant.powertrain, 'onRoadPrice')" [matTooltip]="quote(variant.onRoadPrice)">
+                {{ num(variant.onRoadPrice) | currency: 'EUR' : 'symbol' : '1.0-0' }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+    <p class="riassunto">
+      Allestimenti: {{ trimNames().join(', ') || '—' }} · dotazioni: {{ p.features?.length ?? 0 }} · pacchetti:
+      {{ p.packages?.length ?? 0 }}
+    </p>
+  }
+
+  @if (issues().warnings.length) {
+    <h3>Avvisi e dati scartati</h3>
+    <ul class="avvisi">
+      @for (issue of issues().warnings; track $index) {
+        <li>{{ issue.message }}</li>
+      }
+    </ul>
+    @if (issues().hiddenWarnings) {
+      <button mat-button (click)="showAllWarnings.set(true)">Mostra altri {{ issues().hiddenWarnings }}</button>
+    }
+  }
+} @else {
+  <p class="errore">Non riesco a leggere questo import.</p>
+}

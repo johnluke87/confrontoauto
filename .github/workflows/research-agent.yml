@@ -1,0 +1,81 @@
+# Research agent di Confronto auto: ogni 30 minuti chiede all'API cosa c'è da aggiornare,
+# legge i siti ufficiali delle case e manda i risultati (vedi agent/README.md).
+name: Confronto auto · Research agent
+
+on:
+  schedule:
+    # ogni 30 minuti; minuti "strani" perché allo scoccare dell'ora GitHub è affollato e ritarda
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+    inputs:
+      max_llm_calls:
+        description: Chiamate all'AI al massimo in questa esecuzione
+        default: '5'
+      dry_run:
+        description: Prova senza inviare niente all'API
+        type: boolean
+        default: false
+
+# mai due esecuzioni insieme: la seconda aspetta la prima
+concurrency:
+  group: confronto-auto-agent
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    defaults:
+      run:
+        working-directory: agent
+    env:
+      CA_API_URL: ${{ vars.CA_API_URL || 'https://www.gianlucadario.com/extra/confronto-auto/api' }}
+      CA_AGENT_TOKEN: ${{ secrets.CA_AGENT_TOKEN }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      # per usare un altro servizio compatibile OpenAI (Groq, OpenRouter...): variables LLM_PROVIDER=openai,
+      # LLM_BASE_URL, LLM_MODEL e il secret LLM_API_KEY
+      LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'gemini' }}
+      LLM_MODEL: ${{ vars.LLM_MODEL }}
+      LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      MAX_LLM_CALLS: ${{ inputs.max_llm_calls || vars.MAX_LLM_CALLS || '5' }}
+      DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+      BROWSER: playwright
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: agent
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: agent/package-lock.json
+
+      - name: Ci sono lavori in scadenza?
+        id: peek
+        run: |
+          if [ -z "$CA_AGENT_TOKEN" ]; then
+            echo "::warning::Manca il secret CA_AGENT_TOKEN: agent disattivato"
+            echo "due=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          npm ci --no-audit --no-fund --omit=optional
+          due=$(node src/index.mjs --peek)
+          echo "Lavori in scadenza: $due"
+          echo "due=$due" >> "$GITHUB_OUTPUT"
+
+      # il browser (1-2 minuti di installazione) solo se c'è davvero qualcosa da fare
+      - name: Installa il browser
+        if: steps.peek.outputs.due != '0'
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Ricerca
+        if: steps.peek.outputs.due != '0'
+        run: node src/index.mjs

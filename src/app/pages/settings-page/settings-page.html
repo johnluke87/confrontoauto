@@ -1,0 +1,98 @@
+<h1>Impostazioni</h1>
+
+<mat-card appearance="outlined">
+  <mat-card-header>
+    <mat-card-title>Regione di residenza</mat-card-title>
+    <mat-card-subtitle>Serve per calcolare il bollo</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Regione</mat-label>
+      <mat-select [value]="regionCode()" (selectionChange)="changeRegion($event.value)" [disabled]="!regions.hasValue() || saving()">
+        @if (regions.hasValue()) {
+          @for (r of regions.value(); track r.code) {
+            <mat-option [value]="r.code">{{ r.name }}</mat-option>
+          }
+        }
+      </mat-select>
+    </mat-form-field>
+    @if (saveError(); as message) {
+      <p class="errore" role="alert">{{ message }}</p>
+    }
+
+    @if (region(); as r) {
+      <table class="tabella">
+        <thead>
+          <tr>
+            <th>Alimentazione</th>
+            <th>€/kW fino a 100 kW</th>
+            <th>€/kW oltre</th>
+            <th>Esenzione</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (rule of r.roadTax; track rule.fuelGroup) {
+            <tr>
+              <td>{{ fuelGroupLabels[rule.fuelGroup] }}</td>
+              <td class="num">{{ rule.rateUpTo100Kw | number: '1.2-2' }}</td>
+              <td class="num">{{ rule.rateOver100Kw | number: '1.2-2' }}</td>
+              <td>
+                @if (rule.exemptYears > 0) {
+                  {{ rule.exemptYears }} anni{{ rule.afterExemptPct < 100 ? ', poi ' + rule.afterExemptPct + '%' : '' }}
+                } @else {
+                  —
+                }
+              </td>
+              <td><app-confidence-badge [confidence]="rule.confidence" [source]="rule.source" /></td>
+            </tr>
+            @if (rule.note) {
+              <tr class="nota"><td colspan="5">{{ rule.note }}</td></tr>
+            }
+          }
+        </tbody>
+      </table>
+    }
+  </mat-card-content>
+</mat-card>
+
+<mat-card appearance="outlined">
+  <mat-card-header>
+    <mat-card-title>Parametri dei calcoli</mat-card-title>
+    <mat-card-subtitle>
+      Valori di partenza per i costi. Pallino: <app-confidence-badge confidence="official" /> ufficiale ·
+      <app-confidence-badge confidence="verified" /> verificato · <app-confidence-badge confidence="estimate" /> stima ·
+      <app-confidence-badge confidence="missing" /> mancante
+    </mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    @if (parameters.isLoading()) {
+      <p>Caricamento…</p>
+    } @else if (parameters.hasValue()) {
+      <table class="tabella">
+        <tbody>
+          @for (p of parameters.value(); track p.code) {
+            <tr>
+              <td>
+                {{ p.label }}
+                @if (p.note) {
+                  <div class="nota-inline">{{ p.note }}</div>
+                }
+              </td>
+              <td class="num">
+                @if (p.value !== null) {
+                  {{ p.value | number: '1.0-4' }} {{ p.unit }}
+                } @else {
+                  <span class="mancante">mancante</span>
+                }
+              </td>
+              <td><app-confidence-badge [confidence]="p.confidence" [source]="p.source" /></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    } @else {
+      <p class="errore">Non riesco a leggere i parametri.</p>
+    }
+  </mat-card-content>
+</mat-card>

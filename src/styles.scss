@@ -1,0 +1,41 @@
+@use '@angular/material' as mat;
+
+html {
+  // chiaro o scuro come il sistema operativo
+  color-scheme: light dark;
+  @include mat.theme((
+    color: (
+      primary: mat.$azure-palette,
+      tertiary: mat.$blue-palette,
+    ),
+    typography: Roboto,
+    // densità: 0 = normale, numeri negativi = componenti più compatti
+    density: -2,
+  ));
+
+  @include mat.card-overrides((
+    title-text-size: 1rem,
+    title-text-line-height: 1.375rem,
+    subtitle-text-size: 0.75rem,
+    subtitle-text-line-height: 1rem,
+  ));
+
+  // testi "un punto" più piccoli, come nella dashboard: tabelle di confronto dense
+  --mat-sys-body-large-size: 0.9375rem;
+  --mat-sys-body-large-line-height: 1.375rem;
+  --mat-sys-body-medium-size: 0.8125rem;
+  --mat-sys-body-medium-line-height: 1.125rem;
+  --mat-sys-body-small-size: 0.6875rem;
+  --mat-sys-body-small-line-height: 0.9375rem;
+  --mat-sys-label-large-size: 0.8125rem;
+  --mat-sys-title-medium-size: 0.9375rem;
+}
+
+body {
+  margin: 0;
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font-family: Roboto, sans-serif;
+  font-size: var(--mat-sys-body-medium-size);
+  line-height: var(--mat-sys-body-medium-line-height);
+}

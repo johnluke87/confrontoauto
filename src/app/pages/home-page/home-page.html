@@ -1,0 +1,33 @@
+<h1>Ciao {{ auth.user()?.username }}</h1>
+
+<mat-card appearance="outlined">
+  <mat-card-header>
+    <mat-card-title>Archivio auto</mat-card-title>
+    <mat-card-subtitle>Auto nuove in vendita in Italia</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    @if (brands.isLoading()) {
+      <p>Caricamento…</p>
+    } @else if (brands.error()) {
+      <p class="errore">Non riesco a leggere l'archivio, riprova più tardi.</p>
+    } @else {
+      <ul class="numeri">
+        <li><strong>{{ stats().brands }}</strong> marchi, {{ stats().enabled }} attivi</li>
+        <li><strong>{{ stats().models }}</strong> modelli in archivio</li>
+      </ul>
+      @if (stats().models === 0) {
+        <p>
+          L'archivio è ancora vuoto: lo riempie, un po' alla volta, l'aggiornamento automatico dai siti ufficiali delle
+          case. Poi qui potrai definire il tuo profilo e confrontare le auto.
+        </p>
+      }
+    }
+  </mat-card-content>
+  <mat-card-actions>
+    <a mat-button routerLink="/catalog">Sfoglia l'archivio</a>
+    <a mat-button routerLink="/settings">Impostazioni e parametri</a>
+    @if (auth.isAdmin()) {
+      <a mat-button routerLink="/admin/imports">Revisione dati</a>
+    }
+  </mat-card-actions>
+</mat-card>
