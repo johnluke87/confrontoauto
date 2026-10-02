@@ -100,7 +100,7 @@ async function main() {
     }
   } finally {
     await pages.close();
-    // i lavori prenotati ma non fatti tornano subito disponibili (invece di restare bloccati 2 ore)
+    // i lavori prenotati ma non fatti tornano subito disponibili (invece di restare bloccati 30 minuti)
     const left = tasks.filter((t) => !done.has(t));
     if (left.length > 0) {
       await api.release(left).catch((error) => log(`Non riesco a liberare i lavori: ${error.message}`));

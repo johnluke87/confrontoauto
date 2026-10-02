@@ -5,12 +5,13 @@ declare(strict_types=1);
  * Le rotte usate dal Research agent (il programma che gira su GitHub Actions, vedi la cartella agent/).
  * Non usa cookie né account: si presenta con l'header X-Agent-Token = 'agent_token' di config.php.
  *
- *   GET  /agent/work?limit=3     cosa ricercare adesso (e lo "prenota" per 2 ore)
+ *   GET  /agent/work?limit=3     cosa ricercare adesso (e lo "prenota" per 30 minuti)
  *   GET  /agent/work?peek=1      solo quanti lavori sono in scadenza (per non avviare il browser se non c'è niente)
  *   POST /agent/results          il risultato di un lavoro: viene verificato e salvato, o messo da rivedere
  */
 
-const AGENT_CLAIM_MINUTES = 120;
+// un giro dura pochi minuti: se un lavoro prenotato non arriva entro mezz'ora, torna disponibile
+const AGENT_CLAIM_MINUTES = 30;
 const AGENT_MAX_BODY_BYTES = 2 * 1024 * 1024;
 // dopo un errore (sito irraggiungibile, risposta non valida) si riprova tra una settimana, non tra mezz'ora
 const AGENT_RETRY_DAYS = 7;
@@ -101,7 +102,7 @@ function handle_agent_work(): never
         ];
     }
 
-    // prenoto: per 2 ore nessun'altra esecuzione riceve gli stessi lavori
+    // prenoto: per 30 minuti nessun'altra esecuzione riceve gli stessi lavori
     $now = now_utc();
     foreach ([['ca_brands', array_column($brands, 'id')], ['ca_models', array_column($models, 'id')]] as [$table, $ids]) {
         if ($ids !== []) {
