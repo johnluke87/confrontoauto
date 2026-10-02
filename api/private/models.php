@@ -1,27 +1,34 @@
 <?php
 declare(strict_types=1);
 
-// Lettura del catalogo: modelli di un marchio e scheda completa di un modello (con la provenienza di ogni dato).
+// Lettura del catalogo: elenco dei modelli e scheda completa di un modello (con la provenienza di ogni dato).
 
-/** GET /models?brandId=3: i modelli di un marchio, con numero di versioni e prezzo minimo. */
+/**
+ * GET /models: TUTTI i modelli in archivio, ordinati per marchio, con numero di versioni e prezzo minimo.
+ * GET /models?brandId=3: solo quelli di un marchio.
+ */
 function handle_list_models(): never
 {
     require_user();
-    $brandId = (int) ($_GET['brandId'] ?? 0);
+    $brandId = isset($_GET['brandId']) ? (int) $_GET['brandId'] : null;
     $stmt = db()->prepare(
         'SELECT m.id, m.name, m.slug, m.body_type, m.status, m.last_researched_at, m.research_priority,
+                b.id AS brand_id, b.name AS brand,
                 COUNT(CASE WHEN v.available = 1 THEN v.id END) AS variants,
-                MIN(CASE WHEN v.available = 1 THEN v.list_price_cents END) AS min_price_cents
+                MIN(CASE WHEN v.available = 1 THEN COALESCE(v.list_price_cents, v.on_road_cents) END) AS min_price_cents
            FROM ca_models m
+           JOIN ca_brands b ON b.id = m.brand_id
            LEFT JOIN ca_trims t ON t.model_id = m.id
            LEFT JOIN ca_variants v ON v.trim_id = t.id
-          WHERE m.brand_id = ?
+          WHERE ? IS NULL OR m.brand_id = ?
           GROUP BY m.id
-          ORDER BY m.status, m.name'
+          ORDER BY b.name, m.status, m.name'
     );
-    $stmt->execute([$brandId]);
+    $stmt->execute([$brandId, $brandId]);
     json_response(array_map(fn (array $r) => [
         'id'               => (int) $r['id'],
+        'brandId'          => (int) $r['brand_id'],
+        'brand'            => $r['brand'],
         'name'             => $r['name'],
         'slug'             => $r['slug'],
         'bodyType'         => $r['body_type'],

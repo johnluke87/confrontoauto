@@ -6,7 +6,7 @@
   @let m = model.value();
   @let src = sources();
 
-  <a mat-button class="indietro" [routerLink]="['/catalog']" [queryParams]="{ brand: m.brandId }">
+  <a mat-button class="indietro" [routerLink]="['/catalog']" [fragment]="'marchio-' + m.brandId">
     <mat-icon>arrow_back</mat-icon> {{ m.brand }}
   </a>
 

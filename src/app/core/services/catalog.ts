@@ -40,8 +40,9 @@ export class Catalog {
     return this.http.post<{ queued: number }>(`${this.api}/admin/research-now`, target);
   }
 
-  models(brandId: number): Observable<ModelSummary[]> {
-    return this.http.get<ModelSummary[]>(`${this.api}/models`, { params: { brandId } });
+  /** Tutti i modelli in archivio (ordinati per marchio), oppure solo quelli di un marchio. */
+  models(brandId?: number): Observable<ModelSummary[]> {
+    return this.http.get<ModelSummary[]>(`${this.api}/models`, { params: brandId ? { brandId } : {} });
   }
 
   model(id: number): Observable<ModelDetail> {

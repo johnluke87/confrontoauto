@@ -10,7 +10,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withFetch(), withInterceptors([authInterceptor])),
     provideBrowserGlobalErrorListeners(),
     // withComponentInputBinding: parametri del percorso e query param (:id, ?brand=) arrivano ai componenti come input()
-    provideRouter(routes, withInMemoryScrolling({ scrollPositionRestoration: 'enabled' }), withComponentInputBinding()),
+    provideRouter(routes, withInMemoryScrolling({ scrollPositionRestoration: 'enabled', anchorScrolling: 'enabled' }), withComponentInputBinding()),
     { provide: LOCALE_ID, useValue: 'it' },
   ],
 };

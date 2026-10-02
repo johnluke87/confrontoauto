@@ -14,6 +14,8 @@ export type Provenance = Partial<Record<string, FieldProvenance>>;
 
 export interface ModelSummary {
   id: number;
+  brandId: number;
+  brand: string;
   name: string;
   slug: string;
   bodyType: string | null;

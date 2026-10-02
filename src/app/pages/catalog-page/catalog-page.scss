@@ -1,29 +1,69 @@
-h1 {
-  font-size: 1.25rem;
-  font-weight: 500;
-  margin: 0 0 12px;
+.testa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+
+  h1 {
+    font-size: 1.25rem;
+    font-weight: 500;
+    margin: 0;
+  }
 }
 
-mat-form-field {
-  width: 280px;
+.totale {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.cerca {
+  margin-left: auto;
+  width: 300px;
   max-width: 100%;
+}
+
+section {
+  margin-top: 16px;
+  // l'ancora (#marchio-12) non finisce sotto la barra in alto
+  scroll-margin-top: 64px;
+}
+
+.marchio {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  margin-bottom: 8px;
+
+  h2 {
+    font-size: 1rem;
+    font-weight: 500;
+    margin: 4px 0;
+  }
+}
+
+.conteggio {
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.6;
 }
 
 .modelli {
   list-style: none;
-  margin: 16px 0 0;
+  margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px;
 
   a {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 2px 8px;
-    padding: 10px 12px;
+    padding: 8px 10px;
     border: 1px solid var(--mat-sys-outline-variant);
-    border-radius: 12px;
+    border-radius: 10px;
     color: inherit;
     text-decoration: none;
 
@@ -40,46 +80,40 @@ mat-form-field {
 
 .nome {
   font-weight: 500;
-  font-size: 0.9375rem;
 }
 
 .prezzo {
   text-align: right;
   font-weight: 500;
-}
-
-.tipo,
-.dettagli {
-  font-size: 0.6875rem;
-  opacity: 0.7;
+  white-space: nowrap;
 }
 
 .dettagli {
   grid-column: 1 / -1;
+  font-size: 0.6875rem;
+  opacity: 0.75;
 }
 
-.suggerimento,
+.coda {
+  color: var(--mat-sys-primary);
+  font-weight: 500;
+}
+
+.messaggio {
+  margin: 4px 0 0;
+  color: var(--mat-sys-primary);
+}
+
+.attesa {
+  margin-top: 24px;
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
 .vuoto {
   opacity: 0.7;
 }
 
 .errore {
   color: var(--mat-sys-error);
-}
-
-.barra {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.messaggio {
-  margin: 8px 0 0;
-  color: var(--mat-sys-primary);
-}
-
-.coda {
-  color: var(--mat-sys-primary);
-  font-weight: 500;
 }
