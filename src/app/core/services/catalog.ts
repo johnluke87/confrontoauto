@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
+import { map, Observable } from 'rxjs';
+import { CatalogRow, CatalogRowsResponse, toCatalogRows } from '../../models/catalog-row';
 import { ModelDetail, ModelSummary } from '../../models/car';
 import { Brand, Confidence, Parameter, Region } from '../../models/catalog';
 import { API_BASE_URL } from '../api';
@@ -38,6 +39,11 @@ export class Catalog {
   /** Solo amministratori: "cerca subito" un modello o tutti i modelli di un marchio. */
   researchNow(target: { modelId: number } | { brandId: number }): Observable<{ queued: number }> {
     return this.http.post<{ queued: number }>(`${this.api}/admin/research-now`, target);
+  }
+
+  /** Il listone dell'Archivio: tutte le versioni di tutti i modelli (e i modelli ancora senza versioni). */
+  catalogRows(): Observable<CatalogRow[]> {
+    return this.http.get<CatalogRowsResponse>(`${this.api}/catalog/rows`).pipe(map(toCatalogRows));
   }
 
   /** Tutti i modelli in archivio (ordinati per marchio), oppure solo quelli di un marchio. */

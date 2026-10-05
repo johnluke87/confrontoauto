@@ -1,76 +1,127 @@
 <div class="testa">
   <h1>Archivio</h1>
-  @if (models.hasValue()) {
+  @if (data.hasValue()) {
     <span class="totale">
-      {{ totalShown() }} {{ totalShown() === 1 ? 'modello' : 'modelli' }} · {{ groups().length }}
-      {{ groups().length === 1 ? 'marchio' : 'marchi' }}
+      {{ filtered().length | number }} righe · {{ modelCount() | number }} modelli
+      @if (activeFilterCount()) {
+        (su {{ totalModels() | number }})
+      }
     </span>
   }
+  <span class="spazio"></span>
   <mat-form-field appearance="outline" subscriptSizing="dynamic" class="cerca">
-    <mat-label>Cerca marchio, modello o carrozzeria</mat-label>
-    <input matInput [value]="filter()" (input)="filter.set($any($event.target).value)" autocomplete="off" />
-    @if (filter()) {
-      <button matSuffix mat-icon-button (click)="filter.set('')" aria-label="Cancella la ricerca"><mat-icon>close</mat-icon></button>
-    } @else {
-      <mat-icon matSuffix>search</mat-icon>
-    }
+    <mat-label>Cerca marchio, modello, allestimento, motore</mat-label>
+    <input matInput [value]="filters().search" (input)="setSearch($any($event.target).value)" autocomplete="off" />
+    <mat-icon matSuffix>search</mat-icon>
   </mat-form-field>
+  <button mat-stroked-button [matMenuTriggerFor]="colonne"><mat-icon>view_column</mat-icon> Colonne</button>
+  <button mat-stroked-button (click)="exportCsv()" [disabled]="!filtered().length"><mat-icon>download</mat-icon> CSV</button>
 </div>
 
-@if (queueMessage(); as message) {
-  <p class="messaggio" role="status">{{ message }}</p>
-}
+<mat-menu #colonne="matMenu" class="menu-colonne">
+  <div class="menu-azioni" (click)="$event.stopPropagation()">
+    <button mat-button (click)="showColumns('all')">Tutte</button>
+    <button mat-button (click)="showColumns('default')">Predefinite</button>
+  </div>
+  @for (c of allColumns; track c.key) {
+    <div class="menu-voce" (click)="$event.stopPropagation()">
+      <mat-checkbox [checked]="visible().includes(c.key)" (change)="toggleColumn(c.key, $event.checked)">{{ c.label }}</mat-checkbox>
+    </div>
+  }
+</mat-menu>
 
-@if (models.isLoading() && !models.hasValue()) {
+<div class="ordini">
+  <span class="etichetta">Ordinato per:</span>
+  @for (s of sorts(); track s.key; let i = $index) {
+    <span class="ordine">
+      {{ i + 1 }}. {{ labelOf(s.key) }}
+      <button type="button" (click)="toggleSortDir(s.key)" [attr.aria-label]="'Inverti ' + labelOf(s.key)">
+        {{ s.dir === 1 ? '↑' : '↓' }}
+      </button>
+      <button type="button" (click)="removeSort(s.key)" [attr.aria-label]="'Togli ' + labelOf(s.key)">×</button>
+    </span>
+  } @empty {
+    <span class="etichetta">nessun ordine</span>
+  }
+  <span class="aiuto">clic su una colonna = ordina · Maiusc + clic = aggiungi un ordinamento</span>
+  @if (activeFilterCount()) {
+    <button mat-button class="azzera" (click)="clearFilters()"><mat-icon>filter_alt_off</mat-icon> Azzera {{ activeFilterCount() }} filtri</button>
+  }
+</div>
+
+@if (data.isLoading() && !data.hasValue()) {
   <p>Caricamento…</p>
-} @else if (models.error()) {
+} @else if (data.error()) {
   <p class="errore">Non riesco a leggere l'archivio.</p>
 } @else {
-  @for (g of groups(); track g.brandId) {
-    <section [id]="'marchio-' + g.brandId">
-      <div class="marchio">
-        <h2>{{ g.brand }} <span class="conteggio">{{ g.models.length }}</span></h2>
-        @if (auth.isAdmin()) {
-          <button mat-icon-button (click)="researchBrandNow(g)" matTooltip="Cerca subito tutti i modelli" [attr.aria-label]="'Cerca subito ' + g.brand">
-            <mat-icon>bolt</mat-icon>
-          </button>
-        }
-      </div>
-      <ul class="modelli">
-        @for (m of g.models; track m.id) {
-          <li [class.fuori]="m.status === 'discontinued'">
-            <a [routerLink]="['/catalog/model', m.id]">
-              <span class="nome">{{ m.name }}</span>
-              <span class="prezzo">
-                @if (m.minPriceCents !== null) {
-                  da {{ m.minPriceCents / 100 | currency: 'EUR' : 'symbol' : '1.0-0' }}
+  <div class="scorre">
+    <table>
+      <thead>
+        <tr>
+          @for (c of columns(); track c.key) {
+            <th [class.num]="c.type === 'number' || c.type === 'money'" (click)="sortBy(c, $event)" [matTooltip]="'Clic: ordina · Maiusc+clic: aggiungi ordinamento'" matTooltipShowDelay="800">
+              {{ c.label }}
+              @if (sortIndex(c.key) >= 0) {
+                <span class="freccia">{{ sorts()[sortIndex(c.key)].dir === 1 ? '↑' : '↓' }}@if (sorts().length > 1) {<sub>{{ sortIndex(c.key) + 1 }}</sub>}</span>
+              }
+            </th>
+          }
+        </tr>
+        <tr class="filtri">
+          @for (c of columns(); track c.key) {
+            <th>
+              @switch (c.type) {
+                @case ('enum') {
+                  <mat-select multiple placeholder="Tutti" [value]="filters().enums[c.key] ?? []" (selectionChange)="setEnum(c.key, $event.value)" [attr.aria-label]="'Filtro ' + c.label" panelClass="pannello-filtro">
+                    @for (o of options().get(c.key) ?? []; track o.value) {
+                      <mat-option [value]="o.value">{{ o.label }} <span class="conteggio">{{ o.count }}</span></mat-option>
+                    }
+                  </mat-select>
                 }
-              </span>
-              <span class="dettagli">
-                {{ m.bodyType ? bodyTypes[m.bodyType] + ' · ' : '' }}{{ m.variants }} versioni ·
-                @if (m.status === 'discontinued') {
-                  fuori produzione
-                } @else if (m.queued) {
-                  <strong class="coda">in coda</strong>
-                } @else if (m.lastResearchedAt) {
-                  aggiornato {{ m.lastResearchedAt | date: 'd/M/yy' }}
-                } @else {
-                  in attesa di ricerca
+                @case ('text') {
+                  <input class="filtro" placeholder="contiene…" [value]="filters().text[c.key] ?? ''" (input)="setText(c.key, $any($event.target).value)" [attr.aria-label]="'Filtro ' + c.label" />
                 }
-              </span>
-            </a>
-          </li>
+                @default {
+                  <span class="intervallo">
+                    <input class="filtro" inputmode="decimal" placeholder="min" [value]="rangeValue(c.key, 'min')" (change)="setRange(c.key, 'min', $any($event.target).value)" [attr.aria-label]="c.label + ' minimo'" />
+                    <input class="filtro" inputmode="decimal" placeholder="max" [value]="rangeValue(c.key, 'max')" (change)="setRange(c.key, 'max', $any($event.target).value)" [attr.aria-label]="c.label + ' massimo'" />
+                  </span>
+                }
+              }
+            </th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (r of pageRows(); track $index) {
+          <tr (click)="open(r.row)" [class.spenta]="r.row.state !== 'listed'">
+            @for (c of columns(); track c.key; let i = $index) {
+              <td [class.num]="c.type === 'number' || c.type === 'money'">
+                {{ r.cells[i] }}
+                @if (c.type === 'money' && r.cells[i] && r.row.priceConfidence) {
+                  <app-confidence-badge [confidence]="r.row.priceConfidence" />
+                }
+              </td>
+            }
+          </tr>
+        } @empty {
+          <tr><td class="vuoto" [attr.colspan]="columns().length">Nessuna auto con questi filtri.</td></tr>
         }
-      </ul>
-    </section>
-  } @empty {
-    <p class="vuoto">{{ filter() ? 'Nessuna auto trovata.' : "L'archivio è ancora vuoto." }}</p>
-  }
+      </tbody>
+    </table>
+  </div>
 
-  @if (!filter() && brandsWithoutModels().length) {
-    <p class="attesa">
-      <strong>Marchi senza modelli (ancora):</strong> {{ brandsWithoutModels().join(', ') }}.
-      L'agent non ci è ancora arrivato, oppure il loro sito non si lascia leggere (vedi Revisione → Falliti).
-    </p>
-  }
+  <div class="pagine">
+    <span>Righe per pagina</span>
+    <mat-select [value]="pageSize()" (selectionChange)="setPageSize($event.value)" class="dimensione" aria-label="Righe per pagina">
+      @for (s of pageSizes; track s) {
+        <mat-option [value]="s">{{ s }}</mat-option>
+      }
+    </mat-select>
+    <span>pagina {{ page() + 1 }} di {{ pageCount() }}</span>
+    <button mat-icon-button (click)="goTo(0)" [disabled]="page() === 0" aria-label="Prima pagina"><mat-icon>first_page</mat-icon></button>
+    <button mat-icon-button (click)="goTo(page() - 1)" [disabled]="page() === 0" aria-label="Pagina precedente"><mat-icon>chevron_left</mat-icon></button>
+    <button mat-icon-button (click)="goTo(page() + 1)" [disabled]="page() >= pageCount() - 1" aria-label="Pagina successiva"><mat-icon>chevron_right</mat-icon></button>
+    <button mat-icon-button (click)="goTo(pageCount() - 1)" [disabled]="page() >= pageCount() - 1" aria-label="Ultima pagina"><mat-icon>last_page</mat-icon></button>
+  </div>
 }

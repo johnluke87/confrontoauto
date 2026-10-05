@@ -33,6 +33,7 @@ $routes = [
     ['GET',    '#^/parameters$#',      'handle_list_parameters'],
     ['PATCH',  '#^/admin/parameters/([a-z0-9_]{1,64})$#', 'handle_update_parameter'],
     ['GET',    '#^/models$#',          'handle_list_models'],
+    ['GET',    '#^/catalog/rows$#',    'handle_catalog_rows'],
     ['GET',    '#^/models/(\d+)$#',    'handle_get_model'],
 
     // revisione dei dati arrivati dal Research agent (solo amministratori)

@@ -39,3 +39,21 @@ body {
   font-size: var(--mat-sys-body-medium-size);
   line-height: var(--mat-sys-body-medium-line-height);
 }
+
+// pannelli dei filtri dell'Archivio: il numero di righe accanto a ogni valore
+.pannello-filtro .conteggio {
+  margin-left: 6px;
+  font-size: 0.6875rem;
+  opacity: 0.6;
+}
+
+.menu-colonne {
+  .menu-azioni {
+    display: flex;
+    padding: 0 8px;
+  }
+
+  .menu-voce {
+    padding: 0 12px;
+  }
+}
