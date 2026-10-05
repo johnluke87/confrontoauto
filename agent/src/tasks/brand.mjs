@@ -13,7 +13,7 @@ export function usefulLinks(page, baseUrl) {
     .slice(0, MAX_LINKS);
 }
 
-function brandPrompt(task, page, links) {
+export function brandPrompt(task, page, links) {
   return `TASK: brand-models
 Sei un assistente che estrae dati da pagine web. Rispondi SOLO con un oggetto JSON.
 
@@ -42,7 +42,7 @@ ${links.map((l, i) => `[${i}] ${l.text || '(senza testo)'} | ${l.href}`).join('\
  * Le proposte dell'AI diventano dati solo se il nome del modello compare davvero nella pagina
  * (nel testo del link o nel testo della pagina): la citazione la costruisco io, non l'AI.
  */
-function collectModels(answer, page, links, sourceIndex, found, issues) {
+export function collectModels(answer, page, links, sourceIndex, found, issues) {
   for (const m of Array.isArray(answer?.models) ? answer.models : []) {
     const name = typeof m?.name === 'string' ? m.name.trim() : '';
     if (!name || found.has(name.toLowerCase())) {

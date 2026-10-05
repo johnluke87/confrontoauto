@@ -50,7 +50,7 @@ LINK:
 ${links.map((l, i) => `[${i}] ${l.text || '(senza testo)'} | ${l.href}`).join('\n')}`;
 }
 
-function extractPrompt(task, docs, features) {
+export function extractPrompt(task, docs, features) {
   const perDoc = Math.floor(MAX_TOTAL_CHARS / docs.length);
   return `TASK: model-extract
 Estrai i dati dell'auto ${task.brand} ${task.model}, venduta NUOVA in Italia, dai testi delle FONTI qui sotto
@@ -91,7 +91,15 @@ Esempio di formato:
 ${docs.map((d, i) => `===== FONTE ${i} (${d.kind}) ${d.url}\n${d.text.slice(0, perDoc)}\n===== FINE FONTE ${i}`).join('\n\n')}`;
 }
 
+/** Ricerca completa di un modello: pagine ufficiali -> AI -> verifica delle citazioni. */
 export async function researchModel(task, { pages, llm, features, log }) {
+  const { main, docs, issues } = await collectModelDocs(task, { pages, llm, log });
+  const answer = await llm.json(extractPrompt(task, docs, features));
+  return buildModelResult(task, main, docs, answer, issues, log);
+}
+
+/** 1) e 2): la pagina del modello e le pagine con listino, dati tecnici e dotazioni. */
+export async function collectModelDocs(task, { pages, llm, log }) {
   const issues = [];
 
   // 1) la pagina del modello: quella in archivio, oppure la cerco tra i link della home del marchio
@@ -153,9 +161,12 @@ export async function researchModel(task, { pages, llm, features, log }) {
     }
   }
 
-  // 3) estrazione e 4) verifica delle citazioni
-  const answer = await llm.json(extractPrompt(task, docs, features));
-  issues.push(...verifyEvidence(answer, docs));
+  return { main, docs, issues };
+}
+
+/** 3) e 4): dalla risposta dell'AI (già estratta) al risultato da mandare all'API, togliendo le citazioni false. */
+export function buildModelResult(task, main, docs, answer, issues = [], log = () => {}) {
+  issues = [...issues, ...verifyEvidence(answer, docs)];
   log(`  estratti: ${answer.powertrains?.length ?? 0} motori, ${answer.variants?.length ?? 0} versioni, ${answer.features?.length ?? 0} dotazioni; scartati ${issues.length}`);
 
   return {
