@@ -116,10 +116,11 @@ export async function researchModel(task, { pages, llm, features, log }) {
     ...main.links.filter((l) => /\.pdf(\?|$)/i.test(l.href) && !sameSite(l.href, task.brandUrl ?? modelUrl)),
   ].map((l) => scoreLink(l, task.model));
 
-  // c'è un link evidente al listino di questo modello? Allora scelgo io (con i migliori altri), risparmio una chiamata
+  // pagine candidate (listino, dati tecnici, dotazioni...) in ordine di punteggio
   const ranked = links.filter((l) => l.href !== main.url && l.score >= 4).sort((a, b) => b.score - a.score);
   let chosen;
-  if (ranked[0]?.score >= 7 || llm.remaining < 2) {
+  // l'AI gratuita è poca: la uso per scegliere le pagine solo se le regole non trovano niente di utile
+  if (ranked.length > 0 || llm.remaining < 2) {
     chosen = ranked.slice(0, MAX_EXTRA_PAGES);
   } else {
     const shortlist = links.filter((l) => l.href !== main.url).sort((a, b) => b.score - a.score).slice(0, 300);
