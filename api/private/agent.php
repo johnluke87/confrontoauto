@@ -15,6 +15,8 @@ const AGENT_CLAIM_MINUTES = 30;
 const AGENT_MAX_BODY_BYTES = 2 * 1024 * 1024;
 // dopo un errore (sito irraggiungibile, risposta non valida) si riprova tra una settimana, non tra mezz'ora
 const AGENT_RETRY_DAYS = 7;
+// un modello "riuscito" ha almeno una versione: aggiornato ma senza versioni conta come mai riuscito
+const MODEL_WITHOUT_VARIANTS = 'NOT EXISTS (SELECT 1 FROM ca_trims t JOIN ca_variants v ON v.trim_id = t.id WHERE t.model_id = m.id)';
 
 function require_agent(): void
 {
@@ -276,7 +278,7 @@ function research_status(): array
         'claimed'             => $count("SELECT COUNT(*) $activeModels AND m.research_claimed_at >= ?", [$claimFree])
                                + $count('SELECT COUNT(*) FROM ca_brands WHERE research_claimed_at >= ?', [$claimFree]),
         // in attesa di un nuovo tentativo (sito che blocca, errore...)
-        'waitingRetry'        => $count("SELECT COUNT(*) $activeModels AND m.next_research_at > ? AND m.last_researched_at IS NULL", [$now])
+        'waitingRetry'        => $count("SELECT COUNT(*) $activeModels AND m.next_research_at > ? AND " . MODEL_WITHOUT_VARIANTS, [$now])
                                + $count('SELECT COUNT(*) FROM ca_brands WHERE enabled = 1 AND next_research_at > ? AND last_researched_at IS NULL', [$now]),
         'lastResultAt'        => utc_to_iso(db()->query('SELECT MAX(received_at) FROM ca_imports')->fetchColumn() ?: null),
     ];
@@ -284,7 +286,7 @@ function research_status(): array
 
 /**
  * POST /admin/research-retry: rimette subito in coda marchi e modelli che non sono MAI riusciti
- * (falliti per un errore dell'AI o del sito) e aspettano il prossimo tentativo.
+ * (falliti per un errore dell'AI o del sito, o modelli ancora senza versioni) e aspettano il prossimo tentativo.
  */
 function handle_research_retry(): never
 {
@@ -292,7 +294,10 @@ function handle_research_retry(): never
     $now = now_utc();
     $brands = db()->prepare('UPDATE ca_brands SET next_research_at = NULL, research_claimed_at = NULL WHERE enabled = 1 AND last_researched_at IS NULL AND next_research_at > ?');
     $brands->execute([$now]);
-    $models = db()->prepare("UPDATE ca_models SET next_research_at = NULL, research_claimed_at = NULL WHERE status = 'active' AND last_researched_at IS NULL AND next_research_at > ?");
+    $models = db()->prepare(
+        "UPDATE ca_models m SET m.next_research_at = NULL, m.research_claimed_at = NULL
+          WHERE m.status = 'active' AND m.next_research_at > ? AND " . MODEL_WITHOUT_VARIANTS
+    );
     $models->execute([$now]);
     json_response(['requeued' => $brands->rowCount() + $models->rowCount()] + research_status());
 }

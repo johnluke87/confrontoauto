@@ -35,7 +35,8 @@ Repository → Settings → Secrets and variables → Actions:
 | Secret   | `GROQ_API_KEY` | (facoltativa) https://console.groq.com/keys                                     |
 | Secret   | `OPENROUTER_API_KEY` | (facoltativa) https://openrouter.ai/keys (modelli ":free")               |
 | Variable | `CA_API_URL`     | (facoltativa) default `https://www.gianlucadario.com/extra/confronto-auto/api` |
-| Variable | `MAX_LLM_CALLS`  | (facoltativa) chiamate all'AI per esecuzione, default 5                       |
+| Variable | `MAX_LLM_CALLS`  | (facoltativa) chiamate all'AI per giro, default 5                             |
+| Variable | `ROUNDS`         | (facoltativa) giri di fila per ogni esecuzione automatica, default 10 (si ferma prima se non c'è altro o finisce la quota) |
 | Variable | `GEMINI_MODEL`, `MISTRAL_MODEL`… | (facoltative) modello di ogni servizio                        |
 | Variable | `LLM_ORDER`      | (facoltativa) ordine dei servizi, es. `mistral,gemini,groq`                  |
 

@@ -167,17 +167,34 @@ function process_import(int $importId, ?int $approvedBy = null): array
         try {
             $sourceIds = save_sources($sources);
             $isBrand ? apply_brand_plan($plan, $brand, $sourceIds) : apply_model_plan($plan, (int) $import['model_id'], $sourceIds);
-            mark_researched($import['task_type'], $entityId);
-            $pdo->commit();
+            if (!$isBrand && !model_has_variants($entityId)) {
+                // le versioni c'erano ma nessuna è entrata (es. motori nuovi senza alimentazione): non conta come aggiornato
+                $pdo->rollBack();
+                $report->error('Nessuna versione salvata: i motori delle versioni non hanno l\'alimentazione');
+                schedule_research('model', $entityId, AGENT_RETRY_DAYS);
+                $status = 'rejected';
+            } else {
+                mark_researched($import['task_type'], $entityId);
+                $pdo->commit();
+                $status = 'applied';
+            }
         } catch (Throwable $e) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             throw $e;
         }
-        $status = 'applied';
     }
 
     finish_import($importId, $status, $report->issues, $approvedBy);
     return ['status' => $status, 'issues' => $report->issues];
+}
+
+function model_has_variants(int $modelId): bool
+{
+    $stmt = db()->prepare('SELECT 1 FROM ca_trims t JOIN ca_variants v ON v.trim_id = t.id WHERE t.model_id = ? AND v.available = 1 LIMIT 1');
+    $stmt->execute([$modelId]);
+    return $stmt->fetchColumn() !== false;
 }
 
 function finish_import(int $importId, string $status, array $issues, ?int $reviewedBy = null): void
@@ -519,8 +536,11 @@ function plan_model_result(array $payload, int $modelId, array $sources, ImportR
         ];
     }
 
-    if ($plan['powertrains'] === [] && $plan['variants'] === []) {
-        $report->error('Nessun motore e nessuna versione validi');
+    // senza versioni il modello resterebbe "da ricercare" per un mese anche se l'import risulta applicato
+    if ($plan['variants'] === []) {
+        $report->error($plan['powertrains'] === []
+            ? 'Nessun motore e nessuna versione validi'
+            : 'Nessuna versione valida (allestimento × motore): ' . count($plan['powertrains']) . ' motori senza versioni');
         return $plan;
     }
 

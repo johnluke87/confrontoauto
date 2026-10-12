@@ -94,11 +94,12 @@ jobs:
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
 
-      # più giri di fila solo se avviato a mano con "Giri" > 1 (utile all'inizio per vedere subito i risultati)
+      # più giri di fila: GitHub avvia il cron solo poche volte al giorno, quindi ogni esecuzione lavora finché
+      # c'è qualcosa in scadenza o finisce la quota dell'AI (avvio a mano: "Giri"; automatico: variable ROUNDS, default 10)
       - name: Ricerca
         if: steps.peek.outputs.due != '0'
         env:
-          ROUNDS: ${{ inputs.rounds || '1' }}
+          ROUNDS: ${{ inputs.rounds || vars.ROUNDS || '10' }}
         run: |
           rounds=$(( ROUNDS > 20 ? 20 : (ROUNDS < 1 ? 1 : ROUNDS) ))
           for round in $(seq 1 "$rounds"); do
