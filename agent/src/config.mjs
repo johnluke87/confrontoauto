@@ -74,6 +74,10 @@ export function loadConfig() {
 
     // 'playwright' = browser vero (siti fatti in JavaScript), 'fetch' = solo HTML, 'auto' = playwright se installato
     browser: env('BROWSER', 'auto'),
+    // i siti protetti (Audi, Volvo, Tesla...) rifiutano il browser "headless": su GitHub si usa Google Chrome
+    // con la finestra (dentro uno schermo virtuale, xvfb); BROWSER_CHANNEL=chrome, BROWSER_HEADED=1
+    browserChannel: env('BROWSER_CHANNEL'),
+    headed: env('BROWSER_HEADED') === '1',
     // user agent da browser: diversi siti (es. Audi) rifiutano le richieste che si dichiarano bot
     userAgent: env(
       'AGENT_USER_AGENT',

@@ -38,7 +38,7 @@ async function main() {
   }
   log(`${tasks.length} lavori: ${tasks.map((t) => (t.type === 'brand' ? t.brand : `${t.brand} ${t.model}`)).join(', ')}`);
 
-  const pages = new PageFetcher({ browser: config.browser, userAgent: config.userAgent, log });
+  const pages = new PageFetcher({ browser: config.browser, channel: config.browserChannel, headed: config.headed, userAgent: config.userAgent, log });
   await pages.init();
   const done = new Set();
   let quotaFinished = false;

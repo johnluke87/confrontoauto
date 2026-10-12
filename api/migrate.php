@@ -316,24 +316,41 @@ $COLUMNS = [
 ];
 
 $BRANDS = [
-    ['Abarth', 'https://www.abarth.it'], ['Alfa Romeo', 'https://www.alfaromeo.it'], ['Alpine', 'https://www.alpinecars.com/it/'],
-    ['Aston Martin', 'https://www.astonmartin.com/it'], ['Audi', 'https://www.audi.it'], ['Bentley', 'https://www.bentleymotors.com'],
+    ['Abarth', 'https://www.abarth.it'], ['Alfa Romeo', 'https://www.alfaromeo.it'], ['Alpine', 'https://www.alpinecars.it'],
+    ['Aston Martin', 'https://www.astonmartin.com/en'], ['Audi', 'https://www.audi.it'], ['Bentley', 'https://www.bentleymotors.com'],
     ['BMW', 'https://www.bmw.it'], ['BYD', 'https://www.byd.com/it'], ['Citroën', 'https://www.citroen.it'],
     ['Cupra', 'https://www.cupraofficial.it'], ['Dacia', 'https://www.dacia.it'], ['DR', 'https://www.drautomobiles.com'],
-    ['DS', 'https://www.dsautomobiles.it'], ['EVO', 'https://www.evo-cars.it'], ['Ferrari', 'https://www.ferrari.com/it-IT'],
+    ['DS', 'https://www.dsautomobiles.it'], ['EVO', 'https://www.evomotor.it'], ['Ferrari', 'https://www.ferrari.com/it-IT'],
     ['Fiat', 'https://www.fiat.it'], ['Ford', 'https://www.ford.it'], ['Honda', 'https://www.honda.it'],
-    ['Hyundai', 'https://www.hyundai.com/it'], ['Jaecoo', 'https://www.jaecoo.it'], ['Jaguar', 'https://www.jaguar.it'],
+    ['Hyundai', 'https://www.hyundai.com/it'], ['Jaecoo', 'https://www.jaecoo.it'], ['Jaguar', 'https://www.jaguar.com/it-it/'],
     ['Jeep', 'https://www.jeep-official.it'], ['Kia', 'https://www.kia.com/it'], ['Lamborghini', 'https://www.lamborghini.com/it-en'],
     ['Lancia', 'https://www.lancia.it'], ['Land Rover', 'https://www.landrover.it'], ['Leapmotor', 'https://www.leapmotor.net/it'],
     ['Lexus', 'https://www.lexus.it'], ['Lynk & Co', 'https://www.lynkco.com/it-it'], ['Maserati', 'https://www.maserati.com/it/it'],
     ['Mazda', 'https://www.mazda.it'], ['Mercedes-Benz', 'https://www.mercedes-benz.it'], ['MG', 'https://www.mgmotor.it'],
-    ['Mini', 'https://www.mini.it'], ['Mitsubishi', 'https://www.mitsubishi-auto.it'], ['Nissan', 'https://www.nissan.it'],
-    ['Omoda', 'https://www.omoda.it'], ['Opel', 'https://www.opel.it'], ['Peugeot', 'https://www.peugeot.it'],
+    ['Mini', 'https://www.mini.it'], ['Mitsubishi', 'https://www.mitsubishi-motors.it'], ['Nissan', 'https://www.nissan.it'],
+    ['Omoda', 'https://www.omodaitalia.it'], ['Opel', 'https://www.opel.it'], ['Peugeot', 'https://www.peugeot.it'],
     ['Polestar', 'https://www.polestar.com/it'], ['Porsche', 'https://www.porsche.com/italy/'], ['Renault', 'https://www.renault.it'],
-    ['Seat', 'https://www.seat.it'], ['Skoda', 'https://www.skoda-auto.it'], ['Smart', 'https://it.smart.com'],
+    ['Seat', 'https://www.seat-italia.it'], ['Skoda', 'https://www.skoda-auto.it'], ['Smart', 'https://it.smart.com'],
     ['Subaru', 'https://www.subaru.it'], ['Suzuki', 'https://auto.suzuki.it'], ['Tesla', 'https://www.tesla.com/it_it'],
     ['Toyota', 'https://www.toyota.it'], ['Volkswagen', 'https://www.volkswagen.it'], ['Volvo', 'https://www.volvocars.com/it'],
-    ['XPeng', 'https://www.xpeng.com/it'],
+    ['XPeng', 'https://www.xpengitalia.it'],
+];
+
+// Indirizzi sbagliati della prima versione: [marchio, URL vecchio, URL nuovo, domini ufficiali].
+// Si applicano solo se il marchio ha ancora l'URL vecchio; il marchio torna subito in coda per il Research agent.
+$BRAND_URL_FIXES = [
+    ['Alpine', 'https://www.alpinecars.com/it/', 'https://www.alpinecars.it', 'alpinecars.it,alpinecars.com'],
+    ['Aston Martin', 'https://www.astonmartin.com/it', 'https://www.astonmartin.com/en', 'astonmartin.com'],
+    ['EVO', 'https://www.evo-cars.it', 'https://www.evomotor.it', 'evomotor.it'],
+    // jaguar.it rimanda a jaguar.com/it-it
+    ['Jaguar', 'https://www.jaguar.it', 'https://www.jaguar.com/it-it/', 'jaguar.com,jaguar.it'],
+    // mitsubishi-auto.it rimanda a mitsubishi-motors.it
+    ['Mitsubishi', 'https://www.mitsubishi-auto.it', 'https://www.mitsubishi-motors.it', 'mitsubishi-motors.it,mitsubishi-auto.it'],
+    // omoda.it rimanda a omodaitalia.it
+    ['Omoda', 'https://www.omoda.it', 'https://www.omodaitalia.it', 'omodaitalia.it,omoda.it'],
+    ['Seat', 'https://www.seat.it', 'https://www.seat-italia.it', 'seat-italia.it,seat.it'],
+    // il sito italiano è dell'importatore ufficiale
+    ['XPeng', 'https://www.xpeng.com/it', 'https://www.xpengitalia.it', 'xpengitalia.it,xpeng.com'],
 ];
 
 // Le dotazioni che si possono chiedere come "obbligatorie" [codice, nome, categoria]
@@ -450,6 +467,17 @@ if (strlen($key) < 20) {
             $added += $ins->rowCount();
         }
         $log[] = "marchi: $added nuovi (totale " . count($BRANDS) . ')';
+
+        $fixed = 0;
+        $fix = $pdo->prepare(
+            'UPDATE ca_brands SET official_url = ?, official_domains = ?, next_research_at = NULL, research_claimed_at = NULL, updated_at = ?
+              WHERE name = ? AND official_url = ?'
+        );
+        foreach ($BRAND_URL_FIXES as [$name, $old, $new, $domains]) {
+            $fix->execute([$new, $domains, $now, $name, $old]);
+            $fixed += $fix->rowCount();
+        }
+        $log[] = "marchi: $fixed indirizzi corretti";
 
         $added = 0;
         $ins = $pdo->prepare('INSERT IGNORE INTO ca_features (code, name, category, sort_order) VALUES (?, ?, ?, ?)');

@@ -10,8 +10,10 @@ const SAME_HOST_DELAY_MS = 1500;
 export class PageError extends Error {}
 
 export class PageFetcher {
-  constructor({ browser, userAgent, log }) {
+  constructor({ browser, channel, headed, userAgent, log }) {
     this.mode = browser;
+    this.channel = channel;
+    this.headed = headed;
     this.userAgent = userAgent;
     this.log = log;
     this.robots = new Map(); // origin -> regole
@@ -25,9 +27,23 @@ export class PageFetcher {
     }
     try {
       const { chromium } = await import('playwright');
-      this.browser = await chromium.launch({ headless: true });
-      this.context = await this.browser.newContext({ userAgent: this.userAgent, locale: 'it-IT', viewport: { width: 1366, height: 900 } });
-      this.log('Browser avviato (Playwright)');
+      const options = { locale: 'it-IT', viewport: { width: 1366, height: 900 } };
+      if (this.channel) {
+        try {
+          this.browser = await chromium.launch({ channel: this.channel, headless: !this.headed });
+        } catch (error) {
+          this.log(`${this.channel} non disponibile, uso Chromium (${error.message.split('\n')[0]})`);
+        }
+      }
+      if (this.browser) {
+        // Chrome vero: lascio il suo user agent, uno finto che non torna con il resto del browser insospettisce i siti
+        this.context = await this.browser.newContext(options);
+        this.log(`Browser avviato (${this.channel}${this.headed ? ', con finestra' : ''})`);
+      } else {
+        this.browser = await chromium.launch({ headless: true });
+        this.context = await this.browser.newContext({ ...options, userAgent: this.userAgent });
+        this.log('Browser avviato (Playwright)');
+      }
     } catch (error) {
       if (this.mode === 'playwright') {
         throw error;

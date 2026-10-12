@@ -59,6 +59,9 @@ jobs:
       MAX_TASKS: ${{ inputs.max_llm_calls || vars.MAX_LLM_CALLS || '5' }}
       DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
       BROWSER: playwright
+      # Google Chrome (già installato sui runner) con la finestra, in uno schermo virtuale: i siti protetti rifiutano l'headless
+      BROWSER_CHANNEL: chrome
+      BROWSER_HEADED: '1'
 
     steps:
       - uses: actions/checkout@v5
@@ -93,6 +96,9 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
+          # Chrome e lo schermo virtuale di solito sono già sul runner; se mancano li installo
+          command -v google-chrome >/dev/null || npx playwright install chrome
+          command -v xvfb-run >/dev/null || sudo apt-get install -y xvfb
 
       # più giri di fila: GitHub avvia il cron solo poche volte al giorno, quindi ogni esecuzione lavora finché
       # c'è qualcosa in scadenza o finisce la quota dell'AI (avvio a mano: "Giri"; automatico: variable ROUNDS, default 10)
@@ -105,7 +111,7 @@ jobs:
           for round in $(seq 1 "$rounds"); do
             [ "$rounds" -gt 1 ] && echo "::group::Giro $round di $rounds"
             code=0
-            node src/index.mjs || code=$?
+            xvfb-run -a node src/index.mjs || code=$?
             [ "$rounds" -gt 1 ] && echo "::endgroup::"
             # 3 = quota gratuita finita su tutti i servizi AI: inutile fare altri giri oggi
             if [ "$code" -eq 3 ]; then
