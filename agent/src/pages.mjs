@@ -133,14 +133,7 @@ export class PageFetcher {
       // i siti delle case caricano listini e tabelle dopo: aspetto che la rete si calmi (al massimo 10 secondi)
       await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
       await rejectCookies(page);
-      const data = await page.evaluate(() => ({
-        title: document.title,
-        text: document.body?.innerText ?? '',
-        links: [...document.querySelectorAll('a[href]')].map((a) => ({
-          text: (a.innerText || a.getAttribute('aria-label') || a.title || '').replace(/\s+/g, ' ').trim().slice(0, 120),
-          href: a.href.split('#')[0],
-        })),
-      }));
+      const data = await readPage(page);
       const links = new Map();
       for (const link of data.links) {
         if (/^https?:/.test(link.href) && (!links.has(link.href) || !links.get(link.href).text)) {
@@ -203,6 +196,31 @@ export async function pdfTextByRows(pdf) {
     pages.push(rows.map((r) => r.items.sort((a, b) => a.x - b.x).map((i) => i.value).join(' ')).join('\n'));
   }
   return pages.join('\n\n');
+}
+
+/**
+ * Titolo, testo e link della pagina. Alcuni siti cambiano pagina da soli subito dopo il caricamento
+ * (es. da http a https): la lettura si interrompe, quindi aspetto la pagina nuova e riprovo.
+ */
+async function readPage(page) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await page.evaluate(() => ({
+        title: document.title,
+        text: document.body?.innerText ?? '',
+        links: [...document.querySelectorAll('a[href]')].map((a) => ({
+          text: (a.innerText || a.getAttribute('aria-label') || a.title || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+          href: a.href.split('#')[0],
+        })),
+      }));
+    } catch (error) {
+      if (attempt >= 3 || !/context was destroyed|navigat/i.test(error.message)) {
+        throw error;
+      }
+      await page.waitForLoadState('domcontentloaded', { timeout: 30_000 }).catch(() => {});
+      await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
+    }
+  }
 }
 
 /** Banner dei cookie: scelgo sempre "rifiuta" / "solo necessari", mai "accetta tutto". */
