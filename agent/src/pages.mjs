@@ -8,6 +8,15 @@ const MAX_PDF_BYTES = 25 * 1024 * 1024;
 const SAME_HOST_DELAY_MS = 1500;
 
 export class PageError extends Error {}
+// il browser si è chiuso a metà lavoro: non è colpa del sito, il lavoro torna in coda
+export class BrowserCrashed extends Error {}
+
+// HTTP/3 (QUIC) dentro i runner di GitHub fallisce con alcuni siti (Mercedes): uso HTTP/2
+const BROWSER_ARGS = ['--disable-quic'];
+
+export function isBrowserCrash(error) {
+  return /Target page, context or browser has been closed|Browser has been closed|browser has disconnected/i.test(error?.message ?? '');
+}
 
 export class PageFetcher {
   constructor({ browser, channel, headed, userAgent, log }) {
@@ -26,24 +35,7 @@ export class PageFetcher {
       return;
     }
     try {
-      const { chromium } = await import('playwright');
-      const options = { locale: 'it-IT', viewport: { width: 1366, height: 900 } };
-      if (this.channel) {
-        try {
-          this.browser = await chromium.launch({ channel: this.channel, headless: !this.headed });
-        } catch (error) {
-          this.log(`${this.channel} non disponibile, uso Chromium (${error.message.split('\n')[0]})`);
-        }
-      }
-      if (this.browser) {
-        // Chrome vero: lascio il suo user agent, uno finto che non torna con il resto del browser insospettisce i siti
-        this.context = await this.browser.newContext(options);
-        this.log(`Browser avviato (${this.channel}${this.headed ? ', con finestra' : ''})`);
-      } else {
-        this.browser = await chromium.launch({ headless: true });
-        this.context = await this.browser.newContext({ ...options, userAgent: this.userAgent });
-        this.log('Browser avviato (Playwright)');
-      }
+      await this.launch();
     } catch (error) {
       if (this.mode === 'playwright') {
         throw error;
@@ -52,12 +44,47 @@ export class PageFetcher {
     }
   }
 
-  async close() {
-    await this.browser?.close();
+  async launch() {
+    const { chromium } = await import('playwright');
+    const options = { locale: 'it-IT', viewport: { width: 1366, height: 900 } };
+    this.browser = null;
+    if (this.channel) {
+      try {
+        this.browser = await chromium.launch({ channel: this.channel, headless: !this.headed, args: BROWSER_ARGS });
+      } catch (error) {
+        this.log(`${this.channel} non disponibile, uso Chromium (${error.message.split('\n')[0]})`);
+      }
+    }
+    if (this.browser) {
+      // Chrome vero: lascio il suo user agent, uno finto che non torna con il resto del browser insospettisce i siti
+      this.context = await this.browser.newContext(options);
+      this.log(`Browser avviato (${this.channel}${this.headed ? ', con finestra' : ''})`);
+    } else {
+      this.browser = await chromium.launch({ headless: true, args: BROWSER_ARGS });
+      this.context = await this.browser.newContext({ ...options, userAgent: this.userAgent });
+      this.log('Browser avviato (Playwright)');
+    }
   }
 
-  /** @returns {Promise<{url: string, title: string, text: string, links: {text: string, href: string}[], kind: 'html'|'pdf'}>} */
-  async get(url) {
+  /** Il browser si è chiuso (memoria, crash): ne avvio un altro, una volta sola anche se più lavori se ne accorgono insieme. */
+  async relaunch() {
+    this.relaunching ??= this.launch()
+      .catch((error) => this.log(`Non riesco a riavviare il browser: ${error.message.split('\n')[0]}`))
+      .finally(() => {
+        this.relaunching = null;
+      });
+    await this.relaunching;
+  }
+
+  async close() {
+    await this.browser?.close().catch(() => {});
+  }
+
+  /**
+   * @param plain true = solo HTML, senza browser (siti semplici: niente banner da cliccare né JavaScript)
+   * @returns {Promise<{url: string, title: string, text: string, links: {text: string, href: string}[], kind: 'html'|'pdf'}>}
+   */
+  async get(url, { plain = false } = {}) {
     const parsed = new URL(url);
     if (!(await this.allowedByRobots(parsed))) {
       throw new PageError(`robots.txt non permette di leggere ${url}`);
@@ -67,7 +94,27 @@ export class PageFetcher {
     if (/\.pdf($|\?)/i.test(parsed.pathname + parsed.search)) {
       return this.getPdf(url);
     }
-    return this.browser ? this.getWithBrowser(url) : this.getWithFetch(url);
+    if (!this.browser || plain) {
+      return this.getWithFetch(url);
+    }
+    if (!this.browser.isConnected()) {
+      await this.relaunch();
+    }
+    try {
+      return await this.getWithBrowser(url);
+    } catch (error) {
+      if (!isBrowserCrash(error)) {
+        throw error;
+      }
+      // il browser è caduto durante questa pagina: riavvio e riprovo una volta
+      this.log('Il browser si è chiuso, lo riavvio');
+      await this.relaunch();
+      try {
+        return await this.getWithBrowser(url);
+      } catch (retryError) {
+        throw isBrowserCrash(retryError) ? new BrowserCrashed(`Browser chiuso: ${retryError.message.split('\n')[0]}`) : retryError;
+      }
+    }
   }
 
   async allowedByRobots(url) {
@@ -209,7 +256,8 @@ async function readPage(page) {
         title: document.title,
         text: document.body?.innerText ?? '',
         links: [...document.querySelectorAll('a[href]')].map((a) => ({
-          text: (a.innerText || a.getAttribute('aria-label') || a.title || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+          // innerText è vuoto per i link dei menu chiusi (nascosti): allora uso il testo nell'HTML
+          text: (a.innerText.trim() || a.textContent || a.getAttribute('aria-label') || a.title || '').replace(/\s+/g, ' ').trim().slice(0, 120),
           href: a.href.split('#')[0],
         })),
       }));

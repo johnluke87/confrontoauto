@@ -5,7 +5,7 @@ import { appendFile } from 'node:fs/promises';
 import { Api } from './api.mjs';
 import { loadConfig } from './config.mjs';
 import { BudgetExhausted, Llm, LlmUnavailable, RateLimited } from './llm.mjs';
-import { PageFetcher } from './pages.mjs';
+import { BrowserCrashed, isBrowserCrash, PageFetcher } from './pages.mjs';
 import { researchBrand } from './tasks/brand.mjs';
 import { researchModel } from './tasks/model.mjs';
 
@@ -74,6 +74,12 @@ async function main() {
       }
       if (error instanceof BudgetExhausted) {
         taskLog(`interrotto: ${error.message}`);
+        return;
+      }
+      if (error instanceof BrowserCrashed || isBrowserCrash(error)) {
+        // colpa del browser, non del sito: niente "fallito" (che vorrebbe dire riprovare tra una settimana), torna in coda
+        taskLog(`interrotto, il browser si è chiuso: ${error.message.split('\n')[0]}`);
+        summary.push([label, 'rimandato · browser chiuso', '']);
         return;
       }
       if (error instanceof LlmUnavailable) {

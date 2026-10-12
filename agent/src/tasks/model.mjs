@@ -1,5 +1,7 @@
 // Lavoro "model": versioni, prezzi, motori, misure e dotazioni di un modello.
 
+import { automotoModelPage } from '../automoto.mjs';
+import { BrowserCrashed } from '../pages.mjs';
 import { containsName, sameSite } from '../text.mjs';
 import { verifyEvidence } from '../verify.mjs';
 import { usefulLinks } from './brand.mjs';
@@ -54,7 +56,7 @@ export function extractPrompt(task, docs, features) {
   const perDoc = Math.floor(MAX_TOTAL_CHARS / docs.length);
   return `TASK: model-extract
 Estrai i dati dell'auto ${task.brand} ${task.model}, venduta NUOVA in Italia, dai testi delle FONTI qui sotto
-(pagine e listini del sito ufficiale). Rispondi SOLO con un oggetto JSON.
+(pagine e listini del sito ufficiale, oppure il listino di una rivista di settore). Rispondi SOLO con un oggetto JSON.
 
 REGOLE (importantissime):
 1. Usa SOLO informazioni scritte nelle fonti. Se un dato non c'è, OMETTI il campo. Mai stimare, mai usare conoscenze tue.
@@ -66,6 +68,8 @@ REGOLE (importantissime):
    Usa i prezzi del LISTINO ufficiale, non quelli in promozione ("da ... €", "con finanziamento", "con rottamazione",
    "offerta"): se c'è solo un prezzo promozionale, ometti il prezzo.
 4. Nomi di allestimenti e motorizzazioni come scritti nel listino. Una "versione" = un allestimento con una motorizzazione e il suo prezzo.
+   Se il listino scrive motore e allestimento sulla stessa riga (es. "1.3 mhev Intense dct € 28.900"), separali:
+   allestimento "Intense", motorizzazione "1.3 mhev dct"; la citazione del prezzo è la riga intera.
 5. Solo ${task.model}: ignora altri modelli citati nelle pagine.
 
 CAMPI:
@@ -91,11 +95,51 @@ Esempio di formato:
 ${docs.map((d, i) => `===== FONTE ${i} (${d.kind}) ${d.url}\n${d.text.slice(0, perDoc)}\n===== FINE FONTE ${i}`).join('\n\n')}`;
 }
 
-/** Ricerca completa di un modello: pagine ufficiali -> AI -> verifica delle citazioni. */
+/**
+ * Ricerca completa di un modello: pagine ufficiali -> AI -> verifica delle citazioni.
+ * Se il sito ufficiale non si apre o non mostra nessuna versione, riprovo con il listino di Automoto.it.
+ */
 export async function researchModel(task, { pages, llm, features, log }) {
-  const { main, docs, issues } = await collectModelDocs(task, { pages, llm, log });
+  let collected = null;
+  let officialError = null;
+  try {
+    collected = await collectModelDocs(task, { pages, llm, log });
+  } catch (error) {
+    if (error instanceof BrowserCrashed) {
+      throw error;
+    }
+    officialError = error;
+    log(`  sito ufficiale non leggibile (${error.message.split('\n')[0]})`);
+  }
+
+  let official = null;
+  if (collected) {
+    const answer = await llm.json(extractPrompt(task, collected.docs, features));
+    official = buildModelResult(task, collected.main, collected.docs, answer, collected.issues, log);
+    if (official.variants.length > 0 || llm.remaining < 1) {
+      return official;
+    }
+  }
+
+  const listino = await automotoModelPage(pages, task.brand, task.model).catch((error) => {
+    log(`  listino Automoto.it non letto: ${error.message.split('\n')[0]}`);
+    return null;
+  });
+  if (!listino) {
+    if (official) {
+      return official;
+    }
+    throw officialError;
+  }
+  log(`  nessuna versione dal sito ufficiale: provo ${listino.url} (${listino.text.length} caratteri)`);
+  // la pagina ufficiale del modello resta la fonte 0 (misure, carrozzeria...), il listino è la fonte 1
+  const docs = [
+    ...(collected ? [collected.docs[0]] : []),
+    { url: listino.url, title: listino.title || `${task.brand} ${task.model} – listino Automoto.it`, kind: 'aggregator', text: listino.text },
+  ];
   const answer = await llm.json(extractPrompt(task, docs, features));
-  return buildModelResult(task, main, docs, answer, issues, log);
+  const fromListino = buildModelResult(task, collected?.main ?? listino, docs, answer, [], log);
+  return fromListino.variants.length > 0 || !official ? fromListino : official;
 }
 
 /** 1) e 2): la pagina del modello e le pagine con listino, dati tecnici e dotazioni. */

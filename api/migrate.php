@@ -348,6 +348,7 @@ $BRAND_URL_FIXES = [
     ['Mitsubishi', 'https://www.mitsubishi-auto.it', 'https://www.mitsubishi-motors.it', 'mitsubishi-motors.it,mitsubishi-auto.it'],
     // Omoda e Jaecoo in Italia hanno un sito solo, con la gamma dei due marchi in /modelli/
     ['Omoda', 'https://www.omoda.it', 'https://omodajaecooitalia.com/modelli/', 'omodajaecooitalia.com'],
+    ['Omoda', 'https://www.omodaitalia.it', 'https://omodajaecooitalia.com/modelli/', 'omodajaecooitalia.com'],
     ['Jaecoo', 'https://www.jaecoo.it', 'https://omodajaecooitalia.com/modelli/', 'omodajaecooitalia.com'],
     ['Seat', 'https://www.seat.it', 'https://www.seat-italia.it', 'seat-italia.it,seat.it'],
     // il sito italiano è dell'importatore ufficiale

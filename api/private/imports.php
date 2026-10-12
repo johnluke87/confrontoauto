@@ -37,6 +37,8 @@ const DROPPED_REVIEW_PCT = 30;
 
 const FUELS = ['petrol', 'diesel', 'lpg', 'cng', 'mild_hybrid', 'full_hybrid', 'plugin_hybrid', 'electric'];
 const BODY_TYPES = ['city', 'hatchback', 'sedan', 'wagon', 'suv', 'crossover', 'mpv', 'coupe', 'convertible', 'pickup', 'van', 'other'];
+// listini di testate usati dal Research agent quando il sito ufficiale non si apre o non mostra le versioni
+const TRUSTED_LISTINGS = ['automoto.it'];
 const SOURCE_KINDS = ['official_pricelist', 'official_configurator', 'official_spec', 'official_site', 'press', 'aggregator', 'other'];
 
 // misure: in mm, ma accetto anche citazioni in cm o metri ("4,05 m")
@@ -254,7 +256,11 @@ function read_sources(mixed $raw, array $brand, ImportReport $report): array
             'official' => $official,
         ];
     }
-    if (!in_array(true, array_column(array_filter($sources), 'official'), true)) {
+    // il listino di una testata affidabile basta per non far rivedere l'import a mano: i suoi dati restano comunque "stima"
+    $trusted = array_filter($sources, fn (?array $s) => $s !== null && host_matches_domains($s['url'], TRUSTED_LISTINGS));
+    if ($trusted !== [] && !in_array(true, array_column(array_filter($sources), 'official'), true)) {
+        $report->warn('Nessuna fonte ufficiale: dati dal listino di ' . implode(', ', TRUSTED_LISTINGS) . ' (affidabilità "stima")');
+    } elseif (!in_array(true, array_column(array_filter($sources), 'official'), true)) {
         $report->suspect('Nessuna fonte è sul sito ufficiale del marchio (' . implode(', ', $brand['domains']) . ')');
     }
     return $sources;

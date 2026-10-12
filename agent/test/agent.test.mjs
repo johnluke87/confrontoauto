@@ -62,3 +62,36 @@ test('JSON anche dentro ```json', () => {
   assert.deepEqual(parseJson('```json\n{"a": 1}\n```'), { a: 1 });
   assert.deepEqual(parseJson('Ecco: {"a": 2} fine'), { a: 2 });
 });
+
+test('Automoto: nomi dei modelli senza marchio e scelta del link giusto', async () => {
+  const { automotoModelLinks, matchModelLink } = await import('../src/automoto.mjs');
+  const page = {
+    url: 'https://www.automoto.it/listino/mercedes-benz',
+    links: [
+      { text: 'Mercedes-Benz Classe C', href: 'https://www.automoto.it/listino/mercedes-benz/classe-c' },
+      { text: 'Mercedes-Benz Classe C Station Wagon', href: 'https://www.automoto.it/listino/mercedes-benz/classe-c-station-wagon' },
+      { text: 'Mercedes-Benz GLA SUV', href: 'https://www.automoto.it/listino/mercedes-benz/gla-suv' },
+      { text: 'Listino usato', href: 'https://www.automoto.it/listino-usato/mercedes-benz' },
+    ],
+  };
+  const links = automotoModelLinks(page, 'Mercedes-Benz');
+  assert.deepEqual(links.map((l) => l.name), ['Classe C', 'Classe C Station Wagon', 'GLA SUV']);
+  assert.equal(matchModelLink(links, 'Classe C Station Wagon').name, 'Classe C Station Wagon');
+  assert.equal(matchModelLink(links, 'Classe C Berlina').name, 'Classe C');
+  assert.equal(matchModelLink(links, 'GLA').name, 'GLA SUV');
+  assert.equal(matchModelLink(links, 'Classe S'), null);
+  const citroen = automotoModelLinks({ url: 'https://www.automoto.it/listino/citroen', links: [{ text: 'Citroen C3 Aircross', href: 'https://www.automoto.it/listino/citroen/c3-aircross' }] }, 'Citroën');
+  assert.equal(citroen[0].name, 'C3 Aircross');
+});
+
+test('marchio: il nome del modello vale anche se compare solo nell\'indirizzo del link', async () => {
+  const { collectModels } = await import('../src/tasks/brand.mjs');
+  const page = { text: 'Volvo Cars Italia', links: [] };
+  const links = [{ text: '', href: 'https://www.volvocars.com/it/cars/xc90/' }, { text: 'Scopri', href: 'https://www.volvocars.com/it/cars/ex30/' }];
+  const found = new Map();
+  const issues = [];
+  collectModels({ models: [{ name: 'XC90', linkIndex: 0 }, { name: 'XC60', linkIndex: 1 }] }, page, links, 0, found, issues);
+  assert.deepEqual([...found.keys()], ['xc90']);
+  assert.equal(found.get('xc90').q, 'https://www.volvocars.com/it/cars/xc90/');
+  assert.equal(issues.length, 1);
+});
