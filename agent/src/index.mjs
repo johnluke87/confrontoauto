@@ -42,62 +42,78 @@ async function main() {
   await pages.init();
   const done = new Set();
   let quotaFinished = false;
+  let stop = false; // un lavoro ha visto che è inutile continuare (quota, AI non utilizzabile, tempo)
+
+  /** Un lavoro dall'inizio all'invio del risultato. I log hanno il nome del lavoro: con più lavori insieme si mescolano. */
+  async function runTask(task) {
+    const label = task.type === 'brand' ? `Marchio ${task.brand}` : `${task.brand} ${task.model}`;
+    const taskLog = (message) => log(`[${label}] ${message.trim()}`);
+    if (llm.remaining < MIN_CALLS[task.type]) {
+      taskLog("chiamate all'AI finite: resta per la prossima esecuzione");
+      return;
+    }
+    if (Date.now() - startedAt > config.maxRunMinutes * 60_000) {
+      taskLog('tempo massimo raggiunto: resta per la prossima esecuzione');
+      stop = true;
+      return;
+    }
+
+    taskLog('inizio');
+    let result;
+    try {
+      result = task.type === 'brand'
+        ? await researchBrand(task, { pages, llm, log: taskLog })
+        : await researchModel(task, { pages, llm, features, log: taskLog });
+    } catch (error) {
+      if (error instanceof RateLimited) {
+        // quota gratuita finita su tutti i servizi: inutile continuare oggi
+        taskLog(error.message);
+        summary.push([label, 'rimandato · quota AI finita', '']);
+        quotaFinished = stop = true;
+        return;
+      }
+      if (error instanceof BudgetExhausted) {
+        taskLog(`interrotto: ${error.message}`);
+        return;
+      }
+      if (error instanceof LlmUnavailable) {
+        // chiavi o modelli dell'AI non validi: mi fermo e lo segnalo, i lavori restano da fare
+        taskLog(`AI non utilizzabile: ${error.message}`);
+        summary.push([label, `interrotto · ${error.message}`, '']);
+        process.exitCode = 1;
+        stop = true;
+        return;
+      }
+      taskLog(`errore: ${error.message}`);
+      result = { task: { type: task.type, id: task.id }, ok: false, error: error.message.slice(0, 500) };
+    }
+
+    done.add(task);
+    if (config.dryRun) {
+      console.log(JSON.stringify(result, null, 2));
+      const found = !result.ok
+        ? `errore: ${result.error}`
+        : task.type === 'brand'
+          ? `${result.models.length} modelli: ${result.models.map((m) => m.name).join(', ')}`
+          : `${result.variants.length} versioni, ${result.powertrains.length} motori, ${result.features.length} dotazioni`;
+      summary.push([label, `prova (non inviato) · ${found}`, result.agentIssues?.length ?? '']);
+      return;
+    }
+    const response = await api.submit(result);
+    const problems = (response.issues ?? []).length;
+    taskLog(`-> ${response.status}${problems ? `, ${problems} segnalazioni` : ''}`);
+    summary.push([label, result.ok ? response.status : `${response.status} · ${result.error}`, problems]);
+  }
 
   try {
-    for (const task of tasks) {
-      const label = task.type === 'brand' ? `Marchio ${task.brand}` : `${task.brand} ${task.model}`;
-      if (llm.remaining < MIN_CALLS[task.type]) {
-        log(`Chiamate all'AI finite: ${label} resta per la prossima esecuzione`);
-        break;
+    // più lavori insieme: quasi tutto il tempo si passa ad aspettare pagine e AI, non a calcolare
+    const queue = [...tasks];
+    const worker = async () => {
+      while (!stop && queue.length > 0) {
+        await runTask(queue.shift());
       }
-      if (Date.now() - startedAt > config.maxRunMinutes * 60_000) {
-        log('Tempo massimo raggiunto');
-        break;
-      }
-
-      log(label);
-      let result;
-      try {
-        result = task.type === 'brand' ? await researchBrand(task, { pages, llm, log }) : await researchModel(task, { pages, llm, features, log });
-      } catch (error) {
-        if (error instanceof RateLimited) {
-          // quota gratuita finita su tutti i servizi: inutile continuare oggi
-          log(`  ${error.message}`);
-          summary.push([label, 'rimandato · quota AI finita', '']);
-          quotaFinished = true;
-          break;
-        }
-        if (error instanceof BudgetExhausted) {
-          log(`  interrotto: ${error.message}`);
-          break;
-        }
-        if (error instanceof LlmUnavailable) {
-          // chiavi o modelli dell'AI non validi: mi fermo e lo segnalo, i lavori restano da fare
-          log(`  AI non utilizzabile: ${error.message}`);
-          summary.push([label, `interrotto · ${error.message}`, '']);
-          process.exitCode = 1;
-          break;
-        }
-        log(`  errore: ${error.message}`);
-        result = { task: { type: task.type, id: task.id }, ok: false, error: error.message.slice(0, 500) };
-      }
-
-      done.add(task);
-      if (config.dryRun) {
-        console.log(JSON.stringify(result, null, 2));
-        const found = !result.ok
-          ? `errore: ${result.error}`
-          : task.type === 'brand'
-            ? `${result.models.length} modelli: ${result.models.map((m) => m.name).join(', ')}`
-            : `${result.variants.length} versioni, ${result.powertrains.length} motori, ${result.features.length} dotazioni`;
-        summary.push([label, `prova (non inviato) · ${found}`, result.agentIssues?.length ?? '']);
-        continue;
-      }
-      const response = await api.submit(result);
-      const problems = (response.issues ?? []).length;
-      log(`  -> ${response.status}${problems ? `, ${problems} segnalazioni` : ''}`);
-      summary.push([label, result.ok ? response.status : `${response.status} · ${result.error}`, problems]);
-    }
+    };
+    await Promise.all(Array.from({ length: Math.max(1, Math.min(config.concurrency, queue.length)) }, worker));
   } finally {
     await pages.close();
     // i lavori prenotati ma non fatti tornano subito disponibili (invece di restare bloccati 30 minuti)

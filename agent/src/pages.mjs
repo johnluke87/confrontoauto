@@ -87,11 +87,12 @@ export class PageFetcher {
   }
 
   async politeDelay(host) {
-    const wait = (this.lastHit.get(host) ?? 0) + SAME_HOST_DELAY_MS - Date.now();
-    if (wait > 0) {
-      await new Promise((resolve) => setTimeout(resolve, wait));
+    // prenoto il turno prima di aspettare: due lavori in parallelo sullo stesso sito restano distanziati
+    const slot = Math.max(Date.now(), (this.lastHit.get(host) ?? 0) + SAME_HOST_DELAY_MS);
+    this.lastHit.set(host, slot);
+    if (slot > Date.now()) {
+      await new Promise((resolve) => setTimeout(resolve, slot - Date.now()));
     }
-    this.lastHit.set(host, Date.now());
   }
 
   async getWithFetch(url) {

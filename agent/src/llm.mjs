@@ -71,11 +71,12 @@ export class Llm {
 
   async callWithRetry(provider, prompt) {
     for (let attempt = 1; ; attempt++) {
-      const wait = (provider.lastCallAt ?? 0) + provider.minIntervalMs - Date.now();
-      if (wait > 0) {
-        await sleep(wait);
+      // prenoto il mio turno prima di aspettare: con più lavori in parallelo le chiamate restano distanziate
+      const slot = Math.max(Date.now(), provider.nextSlotAt ?? 0);
+      provider.nextSlotAt = slot + provider.minIntervalMs;
+      if (slot > Date.now()) {
+        await sleep(slot - Date.now());
       }
-      provider.lastCallAt = Date.now();
 
       const response = await (provider.kind === 'gemini' ? callGemini(provider, prompt) : callOpenAi(provider, prompt));
       if (response.ok) {

@@ -71,6 +71,8 @@ export function loadConfig() {
     maxLlmCalls: int('MAX_LLM_CALLS', 5),
     maxTasks: int('MAX_TASKS', 4),
     maxRunMinutes: int('MAX_RUN_MINUTES', 20),
+    // lavori fatti insieme (ognuno su una scheda del browser)
+    concurrency: int('CONCURRENCY', 3),
 
     // 'playwright' = browser vero (siti fatti in JavaScript), 'fetch' = solo HTML, 'auto' = playwright se installato
     browser: env('BROWSER', 'auto'),

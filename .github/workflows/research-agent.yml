@@ -10,14 +10,14 @@ on:
     inputs:
       max_llm_calls:
         description: Chiamate all'AI al massimo in questa esecuzione
-        default: '5'
+        default: '15'
       dry_run:
         description: Prova senza inviare niente all'API
         type: boolean
         default: false
       rounds:
-        description: Giri di fila (1 minuto di pausa tra uno e l'altro; max 20)
-        default: '1'
+        description: Giri di fila (pochi secondi di pausa tra uno e l'altro; si ferma prima se non c'è altro da fare; max 100)
+        default: '100'
 
 # mai due esecuzioni insieme: la seconda aspetta la prima
 concurrency:
@@ -30,7 +30,7 @@ permissions:
 jobs:
   research:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 340
     defaults:
       run:
         working-directory: agent
@@ -54,14 +54,16 @@ jobs:
       LLM_MODEL: ${{ vars.LLM_MODEL }}
       LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-      MAX_LLM_CALLS: ${{ inputs.max_llm_calls || vars.MAX_LLM_CALLS || '5' }}
+      MAX_LLM_CALLS: ${{ inputs.max_llm_calls || vars.MAX_LLM_CALLS || '15' }}
       # lavori presi per giro: più chiamate all'AI = più lavori (un modello ne usa 1-2)
-      MAX_TASKS: ${{ inputs.max_llm_calls || vars.MAX_LLM_CALLS || '5' }}
+      MAX_TASKS: ${{ inputs.max_llm_calls || vars.MAX_LLM_CALLS || '15' }}
       DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
       BROWSER: playwright
       # Google Chrome (già installato sui runner) con la finestra, in uno schermo virtuale: i siti protetti rifiutano l'headless
       BROWSER_CHANNEL: chrome
       BROWSER_HEADED: '1'
+      # lavori fatti insieme (variable CONCURRENCY)
+      CONCURRENCY: ${{ vars.CONCURRENCY || '3' }}
 
     steps:
       - uses: actions/checkout@v5
@@ -101,13 +103,13 @@ jobs:
           command -v xvfb-run >/dev/null || sudo apt-get install -y xvfb
 
       # più giri di fila: GitHub avvia il cron solo poche volte al giorno, quindi ogni esecuzione lavora finché
-      # c'è qualcosa in scadenza o finisce la quota dell'AI (avvio a mano: "Giri"; automatico: variable ROUNDS, default 10)
+      # c'è qualcosa in scadenza o finisce la quota dell'AI (avvio a mano: "Giri"; automatico: variable ROUNDS, default 100; dopo 5 ore non comincia altri giri)
       - name: Ricerca
         if: steps.peek.outputs.due != '0'
         env:
-          ROUNDS: ${{ inputs.rounds || vars.ROUNDS || '10' }}
+          ROUNDS: ${{ inputs.rounds || vars.ROUNDS || '100' }}
         run: |
-          rounds=$(( ROUNDS > 20 ? 20 : (ROUNDS < 1 ? 1 : ROUNDS) ))
+          rounds=$(( ROUNDS > 100 ? 100 : (ROUNDS < 1 ? 1 : ROUNDS) ))
           for round in $(seq 1 "$rounds"); do
             [ "$rounds" -gt 1 ] && echo "::group::Giro $round di $rounds"
             code=0
@@ -121,6 +123,8 @@ jobs:
             [ "$code" -ne 0 ] && echo "::warning::Giro $round finito con un errore"
             if [ "$round" -lt "$rounds" ]; then
               [ "$(node src/index.mjs --peek)" = "0" ] && { echo "Niente altro in scadenza"; break; }
-              sleep 60
+              # un giro dura al massimo 20 minuti: dopo 5 ore mi fermo, prima del limite di 340 minuti del job
+              [ "$SECONDS" -gt 18000 ] && { echo "Cinque ore di lavoro: continuo alla prossima esecuzione"; break; }
+              sleep 5
             fi
           done
