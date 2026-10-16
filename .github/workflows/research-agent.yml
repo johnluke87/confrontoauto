@@ -35,7 +35,7 @@ jobs:
       run:
         working-directory: agent
     env:
-      CA_API_URL: ${{ vars.CA_API_URL || 'https://www.gianlucadario.com/extra/confronto-auto/api' }}
+      CA_API_URL: ${{ vars.CA_API_URL || 'https://www.gianlucadario.com/apps/confronto-auto/api' }}
       CA_AGENT_TOKEN: ${{ secrets.CA_AGENT_TOKEN }}
       # catena di AI gratuite: si usa la prima con quota disponibile, poi le altre (basta creare il secret per attivarla)
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

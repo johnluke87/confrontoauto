@@ -61,7 +61,7 @@ function rank(order, name) {
 
 export function loadConfig() {
   return {
-    // es. https://www.gianlucadario.com/extra/confronto-auto/api
+    // es. https://www.gianlucadario.com/apps/confronto-auto/api
     apiUrl: required('CA_API_URL').replace(/\/+$/, ''),
     agentToken: cleanSecret(required('CA_AGENT_TOKEN')),
 

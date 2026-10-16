@@ -28,10 +28,16 @@ function handle_login(): never
     // qualcuno potrebbe provare una password comune su tanti utenti diversi.
     enforce_rate_limit('login', 30, 15 * 60);
 
-    $stmt = db()->prepare(
-        'SELECT id, username, password_hash, locked_until, is_admin FROM ca_users WHERE username = ?'
-    );
-    $stmt->execute([$username]);
+    // si entra con lo username oppure con l'email (la colonna email la aggiunge il modulo account /apps/account)
+    try {
+        $stmt = db()->prepare(
+            'SELECT id, username, password_hash, locked_until, is_admin FROM ca_users WHERE username = ? OR (email IS NOT NULL AND email <> \'\' AND LOWER(email) = LOWER(?)) LIMIT 1'
+        );
+        $stmt->execute([$username, $username]);
+    } catch (PDOException $e) {
+        $stmt = db()->prepare('SELECT id, username, password_hash, locked_until, is_admin FROM ca_users WHERE username = ?');
+        $stmt->execute([$username]);
+    }
     $user = $stmt->fetch();
 
     if ($user === false) {
@@ -237,7 +243,9 @@ function set_session_cookie(string $value, int $expiresAt): void
     $s = config()['session'];
     setcookie($s['cookie_name'], $value, [
         'expires'  => $expiresAt,
-        'path'     => $s['cookie_path'], // il browser lo manda solo alle chiamate dell'API
+        // il browser lo manda solo alle chiamate dell'API: la cartella la ricavo da dove gira index.php
+        // (es. /apps/confronto-auto/api), così il cookie resta giusto anche se l'app viene spostata
+        'path'     => rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/') ?: $s['cookie_path'],
         'secure'   => true,              // solo su HTTPS
         'httponly' => true,              // JavaScript non può leggerlo: un eventuale script malevolo non lo ruba
         'samesite' => 'Strict',          // mai inviato se la richiesta parte da un altro sito

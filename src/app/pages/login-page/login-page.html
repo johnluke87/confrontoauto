@@ -8,7 +8,7 @@
       <mat-card-content>
         <form [formGroup]="form" (ngSubmit)="submit()">
           <mat-form-field appearance="outline">
-            <mat-label>Utente</mat-label>
+            <mat-label>Utente o email</mat-label>
             <input matInput formControlName="username" autocomplete="username" />
             <mat-error>Inserisci il nome utente</mat-error>
           </mat-form-field>
@@ -43,6 +43,7 @@
           <!-- routerLink: un link "interno" all'app, cambia pagina senza ricaricare tutto -->
           <a mat-button routerLink="/register">Non hai un account? Registrati</a>
         </form>
+        <p class="link-password"><a href="/apps/account/?app=confronto-auto">Password dimenticata o da cambiare?</a></p>
       </mat-card-content>
     </mat-card>
   </main>

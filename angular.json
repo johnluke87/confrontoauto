@@ -49,7 +49,7 @@
                 }
               ],
               "outputHashing": "all",
-              "baseHref": "/extra/confronto-auto/"
+              "baseHref": "/apps/confronto-auto/"
             },
             "development": {
               "optimization": false,

@@ -14,7 +14,7 @@ return [
 
     'session' => [
         'cookie_name'   => 'ca_session',
-        'cookie_path'   => '/extra/confronto-auto/api',
+        'cookie_path'   => '/apps/confronto-auto/api',
         'lifetime_days' => 30,
     ],
 

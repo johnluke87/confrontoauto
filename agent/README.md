@@ -25,6 +25,22 @@ Il programma rispetta `robots.txt` (regole del gruppo `ConfrontoAutoBot` se il s
 fa una pausa tra due pagine dello stesso sito, rifiuta i cookie non necessari e si presenta con uno
 user agent da browser, perché diversi siti rifiutano le richieste che si dichiarano bot.
 
+## Consumi reali (dati UE)
+
+`src/real-consumption.mjs` (workflow `real-consumption.yml`, il lunedì) prende i **consumi reali** dai dati ufficiali
+dell'Agenzia europea dell'ambiente: il consumo letto dai contatori di bordo (OBFCM) di milioni di auto immatricolate
+in Europa, con marca, modello, kW e cilindrata ([dataset EEA](https://sdi.eea.europa.eu/data/13e6fad9-149c-4b86-9d83-cdf3569ccfee),
+licenza CC-BY 4.0). Per ogni motore dell'archivio cerca le auto vere uguali:
+
+1. **stessa versione** (marca, modello, alimentazione, kW ±3%, cilindrata ±60 cc; almeno 20 auto): consumo reale;
+2. **stesso modello** (almeno 50 auto): il rapporto reale/WLTP del modello, applicato al WLTP della versione;
+3. **stessa marca** (almeno 200 auto): il rapporto reale/WLTP della marca.
+
+Per le plug-in salva anche la corrente presa dalla presa e la quota di km in elettrico. Elettriche pure, GPL e metano
+nei dati UE non ci sono (o l'EEA non li usa): per loro l'app usa il WLTP più la percentuale scelta nell'Archivio.
+Il file (2 GB) si scarica una volta all'anno e resta nella cache; quando esce il dataset nuovo metti l'indirizzo della
+sua pagina nella variable `EEA_DATASET`. Spritmonitor e simili non si usano: le loro condizioni vietano la lettura automatica.
+
 ## Configurazione su GitHub
 
 Repository → Settings → Secrets and variables → Actions:
@@ -37,7 +53,7 @@ Repository → Settings → Secrets and variables → Actions:
 | Secret   | `CEREBRAS_API_KEY` | (facoltativa) https://cloud.cerebras.ai                                    |
 | Secret   | `GROQ_API_KEY` | (facoltativa) https://console.groq.com/keys                                     |
 | Secret   | `OPENROUTER_API_KEY` | (facoltativa) https://openrouter.ai/keys (modelli ":free")               |
-| Variable | `CA_API_URL`     | (facoltativa) default `https://www.gianlucadario.com/extra/confronto-auto/api` |
+| Variable | `CA_API_URL`     | (facoltativa) default `https://www.gianlucadario.com/apps/confronto-auto/api` |
 | Variable | `MAX_LLM_CALLS`  | (facoltativa) chiamate all'AI per giro, default 15                            |
 | Variable | `ROUNDS`         | (facoltativa) giri di fila per ogni esecuzione, default 100 (si ferma prima se non c'è altro, finisce la quota o dopo 5 ore) |
 | Variable | `CONCURRENCY`    | (facoltativa) lavori fatti insieme, default 3                                 |

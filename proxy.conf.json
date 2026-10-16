@@ -1,5 +1,5 @@
 {
-  "/extra/confronto-auto/api": {
+  "/apps/confronto-auto/api": {
     "target": "https://www.gianlucadario.com",
     "secure": true,
     "changeOrigin": true,

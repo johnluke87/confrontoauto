@@ -1,11 +1,11 @@
-# Confronto auto (Angular), pubblicata in /extra/confronto-auto/
+# Confronto auto (Angular), pubblicata in /apps/confronto-auto/
 # Angular copia questo file nella build (cartella public/): va caricato insieme agli altri.
 
 # Niente elenco dei file se qualcuno apre una cartella
 Options -Indexes
 
 RewriteEngine On
-RewriteBase /extra/confronto-auto/
+RewriteBase /apps/confronto-auto/
 
 # 1) L'API PHP ha il suo .htaccess: qui non la tocchiamo
 RewriteRule ^api/ - [L]
@@ -17,7 +17,7 @@ RewriteRule ^ - [L]
 
 # 3) Tutto il resto (/settings, /login, /register...) è una "pagina" di Angular: rispondo con index.html
 #    e poi è il router di Angular a mostrare la pagina giusta. Senza questa regola, ricaricando
-#    /extra/confronto-auto/settings Aruba risponderebbe 404.
+#    /apps/confronto-auto/settings Aruba risponderebbe 404.
 RewriteRule ^ index.html [L]
 
 <IfModule mod_headers.c>
