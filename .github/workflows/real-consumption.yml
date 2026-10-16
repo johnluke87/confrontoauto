@@ -1,0 +1,59 @@
+# Consumi REALI dai dati ufficiali UE (EEA, contatori di bordo di milioni di auto): ogni settimana abbina i motori
+# dell'archivio alle auto vere uguali e manda i consumi all'API (vedi agent/src/real-consumption.mjs).
+# Il file EEA (2 GB) si scarica una volta sola: il riassunto resta nella cache di GitHub finché non esce l'anno nuovo.
+name: Confronto auto · Consumi reali
+
+on:
+  schedule:
+    # il lunedì mattina (i motori nuovi trovati dal Research agent nella settimana prendono i loro consumi)
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Prova senza inviare niente all'API
+        type: boolean
+        default: false
+
+concurrency:
+  group: confronto-auto-real-consumption
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  real-consumption:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: agent
+    env:
+      CA_API_URL: ${{ vars.CA_API_URL || 'https://www.gianlucadario.com/apps/confronto-auto/api' }}
+      CA_AGENT_TOKEN: ${{ secrets.CA_AGENT_TOKEN }}
+      # la pagina del dataset EEA: ogni anno ne esce uno nuovo (variable EEA_DATASET per cambiarlo)
+      EEA_DATASET: ${{ vars.EEA_DATASET }}
+      DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: agent
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - uses: actions/cache@v4
+        with:
+          path: agent/.cache
+          # cambia quando cambia il dataset: allora si riscarica
+          key: eea-${{ vars.EEA_DATASET || 'default' }}-v1
+
+      - name: Consumi reali
+        run: |
+          if [ -z "$CA_AGENT_TOKEN" ]; then
+            echo "::warning::Manca il secret CA_AGENT_TOKEN"
+            exit 0
+          fi
+          node src/real-consumption.mjs

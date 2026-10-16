@@ -43,7 +43,8 @@ function handle_agent_work(): never
     $claimFreeBefore = gmdate('Y-m-d H:i:s', time() - AGENT_CLAIM_MINUTES * 60);
 
     // in scadenza = mai ricercato, oppure è arrivata la data della prossima ricerca
-    $brandWhere = 'b.enabled = 1 AND b.official_url IS NOT NULL
+    // anche i marchi senza sito ufficiale: l'agent usa il listino di Automoto.it
+    $brandWhere = 'b.enabled = 1
                    AND (b.next_research_at IS NULL OR b.next_research_at <= ?)
                    AND (b.research_claimed_at IS NULL OR b.research_claimed_at < ?)';
     $modelWhere = "b.enabled = 1 AND m.status = 'active'
@@ -273,7 +274,7 @@ function research_status(): array
         'modelsWithVariants'  => $count("SELECT COUNT(DISTINCT m.id) $activeModels AND EXISTS (SELECT 1 FROM ca_trims t JOIN ca_variants v ON v.trim_id = t.id WHERE t.model_id = m.id)"),
         // da fare adesso (non prenotati)
         'due'                 => $count("SELECT COUNT(*) $activeModels AND (m.next_research_at IS NULL OR m.next_research_at <= ?) AND (m.research_claimed_at IS NULL OR m.research_claimed_at < ?)", [$now, $claimFree])
-                               + $count('SELECT COUNT(*) FROM ca_brands b WHERE b.enabled = 1 AND b.official_url IS NOT NULL AND (b.next_research_at IS NULL OR b.next_research_at <= ?) AND (b.research_claimed_at IS NULL OR b.research_claimed_at < ?)', [$now, $claimFree]),
+                               + $count('SELECT COUNT(*) FROM ca_brands b WHERE b.enabled = 1 AND (b.next_research_at IS NULL OR b.next_research_at <= ?) AND (b.research_claimed_at IS NULL OR b.research_claimed_at < ?)', [$now, $claimFree]),
         // prenotati da un'esecuzione in corso (o interrotta)
         'claimed'             => $count("SELECT COUNT(*) $activeModels AND m.research_claimed_at >= ?", [$claimFree])
                                + $count('SELECT COUNT(*) FROM ca_brands WHERE research_claimed_at >= ?', [$claimFree]),

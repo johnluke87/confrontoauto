@@ -1,12 +1,12 @@
 <mat-toolbar class="barra">
-  <a class="logo" routerLink="/">
+  <a class="logo" routerLink="/catalog">
     <mat-icon>directions_car</mat-icon>
     <span>Confronto auto</span>
   </a>
 
   <nav>
-    <a mat-button routerLink="/" routerLinkActive="attivo" [routerLinkActiveOptions]="{ exact: true }">Confronto</a>
     <a mat-button routerLink="/catalog" routerLinkActive="attivo">Archivio</a>
+    <a mat-button routerLink="/settings" routerLinkActive="attivo">Impostazioni</a>
     @if (auth.isAdmin()) {
       <a mat-button routerLink="/admin/imports" routerLinkActive="attivo">Revisione</a>
       <a mat-button routerLink="/admin/brands" routerLinkActive="attivo">Marchi</a>
@@ -20,10 +20,6 @@
   </button>
   <mat-menu #userMenu="matMenu">
     <div class="utente" mat-menu-item disabled>{{ auth.user()?.username }}</div>
-    <a mat-menu-item routerLink="/settings">
-      <mat-icon>settings</mat-icon>
-      <span>Impostazioni</span>
-    </a>
     <button mat-menu-item (click)="logout()">
       <mat-icon>logout</mat-icon>
       <span>Esci</span>

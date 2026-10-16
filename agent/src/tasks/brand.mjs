@@ -25,7 +25,7 @@ Questi sono i link trovati nella pagina ${page.url} (sito ufficiale italiano del
 Modelli già in archivio (se sono gli stessi modelli, usa gli stessi nomi): ${task.knownModels.length ? task.knownModels.join(', ') : 'nessuno'}
 
 Individua i MODELLI di AUTOVETTURE NUOVE oggi in vendita in Italia (la gamma attuale).
-Escludi: veicoli commerciali e furgoni, usato, km 0, noleggio, flotte, accessori, modelli solo "in arrivo", serie passate.
+Escludi: veicoli commerciali e furgoni, quadricicli e microcar ("auto senza patente"), usato, km 0, noleggio, flotte, accessori, modelli solo "in arrivo", serie passate.
 Ogni modello una volta sola, con il nome commerciale SENZA il marchio (es. "Panda", non "Fiat Panda").
 Carrozzerie vendute con un nome diverso (es. "Classe C Station Wagon") sono modelli separati.
 
@@ -90,6 +90,9 @@ export async function researchBrand(task, { pages, llm, log }) {
 
   let officialError = null;
   try {
+    if (!task.url) {
+      throw new Error('nessun sito ufficiale in archivio');
+    }
     const home = await pages.get(task.url);
     sources.push({ url: home.url, title: home.title || `${task.brand} – sito ufficiale`, kind: 'official_site' });
     let links = usefulLinks(home, task.url);

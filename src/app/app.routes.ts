@@ -21,11 +21,8 @@ export const routes: Routes = [
     component: Shell,
     canActivate: [authGuard],
     children: [
-      {
-        path: '',
-        title: 'Confronto auto',
-        loadComponent: () => import('./pages/home-page/home-page').then((m) => m.HomePage),
-      },
+      // la pagina iniziale è l'Archivio
+      { path: '', pathMatch: 'full', redirectTo: 'catalog' },
       {
         path: 'settings',
         title: 'Impostazioni · Confronto auto',

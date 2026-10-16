@@ -95,3 +95,47 @@ test('marchio: il nome del modello vale anche se compare solo nell\'indirizzo de
   assert.equal(found.get('xc90').q, 'https://www.volvocars.com/it/cars/xc90/');
   assert.equal(issues.length, 1);
 });
+
+test('consumi reali EEA: CSV, nomi e abbinamento ai motori', async () => {
+  const { aggregate, brandKey, indexGroups, matchPowertrain, modelTokens, parseCsvLine, tokens } = await import('../src/eea.mjs');
+  assert.deepEqual(parseCsvLine('1,"XG1TJ(JP,M)",x'), ['1', 'XG1TJ(JP,M)', 'x']);
+  assert.equal(brandKey('Mercedes-Benz'), 'MERCEDESBENZ');
+  assert.equal(brandKey('Citroën'), 'CITROEN');
+  assert.equal(brandKey('Lynk & Co'), 'LYNKCO');
+  assert.deepEqual(tokens('T-Roc'), ['TROC']);
+  assert.deepEqual(tokens('Serie 3 Touring'), ['3', 'TOURING']);
+  assert.deepEqual(modelTokens('TOYOTA COROLLA', 'TOYOTA'), ['COROLLA']);
+
+  const header = 'Total fuel consumed (lifetime) (l),Total distance travelled (lifetime) (km),Total distance travelled in charge depleting operation with engine off (lifetime) (km),Total grid energy into the battery (lifetime) (kWh),Mk,Cn,Ewltp (g/km),Ft,Fm,Ec (cm3),Ep (KW),Fuel consumption,Used in calculation';
+  const car = (fuel, km, cn, ft, fm, kw, cc, wltp, extra = ['NULL', 'NULL'], used = '1') =>
+    [fuel, km, extra[0], extra[1], 'BMW', cn, 'NULL', ft, fm, cc, kw, wltp, used].join(',');
+  const lines = ['﻿' + header];
+  for (let i = 0; i < 25; i++) {
+    lines.push(car(600, 10000, '320D', 'diesel', 'M', 140, 1995, 5)); // 6 l/100km, WLTP 5
+  }
+  lines.push(car(600, 10000, '320D', 'diesel', 'M', 140, 1995, 5, undefined, '0')); // scartata dall'EEA: non conta
+  lines.push(car(5, 100, '320D', 'diesel', 'M', 140, 1995, 5)); // troppi pochi km: non conta
+  for (let i = 0; i < 30; i++) {
+    lines.push(car(200, 10000, 'X5 XDRIVE50E', 'petrol/electric', 'P', 230, 2998, 1, ['4000', '1500']));
+  }
+  const { groups, kept } = await aggregate(lines);
+  assert.equal(kept, 55);
+  const index = indexGroups(groups);
+
+  const diesel = matchPowertrain({ id: 1, brand: 'BMW', model: 'Serie 3 Berlina', name: '320d', fuel: 'diesel', powerKw: 140, powerCv: 190, displacementCc: 1995 }, index);
+  assert.equal(diesel.level, 'version');
+  assert.equal(diesel.vehicles, 25);
+  assert.equal(diesel.realConsumption, 6);
+  assert.equal(diesel.factor, 1.2);
+
+  const plugin = matchPowertrain({ id: 2, brand: 'BMW', model: 'X5', name: 'xDrive50e', fuel: 'plugin_hybrid', powerKw: 230, powerCv: 313, displacementCc: 2998 }, index);
+  assert.equal(plugin.level, 'version');
+  assert.equal(plugin.realConsumption, 2);
+  assert.equal(plugin.realKwh100km, 15);
+  assert.equal(plugin.realEvShare, 0.4);
+  assert.equal(plugin.factor, null);
+
+  // un altro motore dello stesso modello: niente "versione", e 25 auto non bastano per il modello
+  assert.equal(matchPowertrain({ id: 3, brand: 'BMW', model: 'Serie 3', name: '318d', fuel: 'diesel', powerKw: 110, powerCv: 150, displacementCc: 1995 }, index).level, null);
+  assert.equal(matchPowertrain({ id: 4, brand: 'BMW', model: 'iX', name: 'xDrive40', fuel: 'electric', powerKw: 240, powerCv: 326, displacementCc: null }, index).level, null);
+});

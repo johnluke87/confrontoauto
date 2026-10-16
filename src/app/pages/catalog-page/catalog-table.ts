@@ -16,7 +16,14 @@ export interface Column {
   decimals?: number;
   // mostrata di default
   visible?: boolean;
+  // spiegazione nel tooltip dell'intestazione
+  hint?: string;
+  // valore calcolato (stima dei costi), non letto dalle fonti
+  estimate?: boolean;
 }
+
+// colonne aggiunte dopo la prima versione: chi aveva già scelto le sue colonne le vede comparire una volta
+export const NEW_COLUMNS: ColumnKey[] = ['usedConsumption', 'runningYear', 'total10', 'total15'];
 
 const GEARBOX = { manual: 'Manuale', automatic: 'Automatico' };
 const DRIVE = { fwd: 'Anteriore', rwd: 'Posteriore', awd: 'Integrale' };
@@ -36,11 +43,19 @@ export const COLUMNS: Column[] = [
   { key: 'gears', label: 'Marce', type: 'number' },
   { key: 'drive', label: 'Trazione', type: 'enum', labels: DRIVE },
   { key: 'consumption', label: 'Consumo WLTP', type: 'number', decimals: 1, visible: true },
+  { key: 'usedConsumption', label: 'Consumo reale', type: 'number', decimals: 1, hint: 'Il consumo usato per i costi: quello reale dai contatori di bordo di migliaia di auto (dati UE) se c’è, altrimenti WLTP + la percentuale scelta in alto', estimate: true, visible: true },
   { key: 'electricRangeKm', label: 'Autonomia el.', type: 'number', unit: 'km' },
   { key: 'batteryKwh', label: 'Batteria', type: 'number', unit: 'kWh', decimals: 1 },
   { key: 'co2', label: 'CO₂', type: 'number', unit: 'g/km', visible: true },
   { key: 'listPrice', label: 'Listino', type: 'money', visible: true },
   { key: 'onRoadPrice', label: 'Chiavi in mano', type: 'money', visible: true },
+  // stima dei costi: gestione = tutto tranne l'acquisto; totale = prezzo (chiavi in mano o listino) + gestione
+  { key: 'energyYear', label: 'Carburante/anno', type: 'money', hint: 'Carburante e/o corrente in un anno', estimate: true },
+  { key: 'runningYear', label: 'Gestione/anno', type: 'money', hint: 'Media annua dei primi 10 anni: carburante, bollo, assicurazione, manutenzione, revisioni, imprevisti', estimate: true, visible: true },
+  { key: 'running10', label: 'Gestione 10 anni', type: 'money', hint: 'Tutti i costi tranne l\'acquisto, in 10 anni', estimate: true },
+  { key: 'running15', label: 'Gestione 15 anni', type: 'money', hint: 'Tutti i costi tranne l\'acquisto, in 15 anni', estimate: true },
+  { key: 'total10', label: 'Totale 10 anni', type: 'money', hint: 'Prezzo + gestione di 10 anni', estimate: true, visible: true },
+  { key: 'total15', label: 'Totale 15 anni', type: 'money', hint: 'Prezzo + gestione di 15 anni', estimate: true, visible: true },
   { key: 'lengthMm', label: 'Lunghezza', type: 'number', unit: 'mm', visible: true },
   { key: 'widthMm', label: 'Larghezza', type: 'number', unit: 'mm' },
   { key: 'heightMm', label: 'Altezza', type: 'number', unit: 'mm' },
@@ -95,7 +110,11 @@ export function cellText(row: CatalogRow, column: Column): string {
     case 'number': {
       const n = formatNumber(value as number, column.decimals ?? 0);
       if (column.key === 'consumption') {
-        return `${n} ${{ l_100km: 'l/100km', kg_100km: 'kg/100km', kwh_100km: 'kWh/100km' }[row.consumptionUnit ?? 'l_100km'] ?? ''}`;
+        return `${n} ${UNITS[row.consumptionUnit ?? 'l_100km'] ?? ''}`;
+      }
+      if (column.key === 'usedConsumption') {
+        // il consumo usato può essere stimato (senza unità nella scheda): l'unità la dice l'alimentazione
+        return `${n} ${UNITS[row.fuel === 'electric' ? 'kwh_100km' : row.fuel === 'cng' ? 'kg_100km' : 'l_100km']}`;
       }
       return column.unit ? `${n} ${column.unit}` : n;
     }
@@ -104,6 +123,7 @@ export function cellText(row: CatalogRow, column: Column): string {
   }
 }
 
+const UNITS: Record<string, string> = { l_100km: 'l/100km', kg_100km: 'kg/100km', kwh_100km: 'kWh/100km' };
 const EURO = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 const NUMBERS = new Map<number, Intl.NumberFormat>();
 function formatNumber(value: number, decimals: number): string {

@@ -51,3 +51,6 @@ Thumbs.db
 
 # configurazione locale di Claude Code
 /.claude/
+
+# cache dei dati EEA (consumi reali)
+/agent/.cache

@@ -313,6 +313,14 @@ $COLUMNS = [
     ['ca_parameters', 'sort_order', 'SMALLINT NOT NULL DEFAULT 0 AFTER code'],
     ['ca_imports', 'task_type', "ENUM('brand','model') NOT NULL DEFAULT 'model' AFTER id"],
     ['ca_imports', 'reviewed_by', 'INT UNSIGNED NULL AFTER issues'],
+    // consumi REALI dai contatori di bordo di milioni di auto (dati UE, vedi agent/src/eea.mjs)
+    ['ca_powertrains', 'real_consumption', 'DECIMAL(5,2) NULL AFTER lpg_tank_l'],
+    ['ca_powertrains', 'real_kwh_100km', 'DECIMAL(5,2) NULL AFTER real_consumption'],
+    ['ca_powertrains', 'real_ev_share', 'DECIMAL(4,3) NULL AFTER real_kwh_100km'],
+    ['ca_powertrains', 'real_factor', 'DECIMAL(5,3) NULL AFTER real_ev_share'],
+    ['ca_powertrains', 'real_vehicles', 'INT UNSIGNED NULL AFTER real_factor'],
+    ['ca_powertrains', 'real_level', "ENUM('version','model','brand') NULL AFTER real_vehicles"],
+    ['ca_powertrains', 'real_source_id', 'INT UNSIGNED NULL AFTER real_level'],
 ];
 
 $BRANDS = [
@@ -334,6 +342,15 @@ $BRANDS = [
     ['Subaru', 'https://www.subaru.it'], ['Suzuki', 'https://auto.suzuki.it'], ['Tesla', 'https://www.tesla.com/it_it'],
     ['Toyota', 'https://www.toyota.it'], ['Volkswagen', 'https://www.volkswagen.it'], ['Volvo', 'https://www.volvocars.com/it'],
     ['XPeng', 'https://www.xpengitalia.it'],
+    // marchi meno diffusi importati in Italia (elenco del listino di Automoto.it, senza quadricicli e veicoli
+    // commerciali): senza sito ufficiale in archivio, l'agent prende gamma e versioni dal listino di Automoto.it
+    ['BAW', null], ['Bestune', null], ['Cadillac', null], ['Caterham', null], ['Changan', null], ['Chery', null],
+    ['Chevrolet', null], ['Chrysler', null], ['Cirelli', null], ['Corvette', null], ['Denza', null], ['Desner', null],
+    ['DFSK', null], ['Dodge', null], ['Dongfeng', null], ['EMC', null], ['Forthing', null], ['Geely', null],
+    ['Genesis', null], ['GMC', null], ['Great Wall', null], ['Hongqi', null], ['ICH-X', null], ['Ineos', null],
+    ['KG Mobility', null], ['Lepas', null], ['Lotus', null], ['Mahindra', null], ['McLaren', null], ['Mhero', null],
+    ['Militem', null], ['Morgan', null], ['Ram', null], ['Rolls Royce', null], ['Seres', null], ['Sportequipe', null],
+    ['SWM', null], ['Tiger', null], ['Voyah', null], ['Zeekr', null],
 ];
 
 // Indirizzi sbagliati della prima versione: [marchio, URL vecchio, URL nuovo, domini ufficiali].
@@ -465,7 +482,8 @@ if (strlen($key) < 20) {
              VALUES (?, ?, ?, ?, 1, ?, ?)'
         );
         foreach ($BRANDS as [$name, $url]) {
-            $ins->execute([$name, slugify($name), $url, registrable_domain((string) parse_url($url, PHP_URL_HOST)), $now, $now]);
+            $domain = $url === null ? null : registrable_domain((string) parse_url($url, PHP_URL_HOST));
+            $ins->execute([$name, slugify($name), $url, $domain, $now, $now]);
             $added += $ins->rowCount();
         }
         $log[] = "marchi: $added nuovi (totale " . count($BRANDS) . ')';
@@ -518,36 +536,47 @@ if (strlen($key) < 20) {
         $log[] = 'bollo: regole per ' . count($REGIONS) . ' regioni (Veneto verificato, le altre stime da verificare)';
 
         // PARAMETRI dei calcoli. NULL + 'missing' = non lo sappiamo ancora: niente numeri inventati.
-        // Regola sul MATERIALE: gomme, freni, frizione, cinghia e batteria li monti tu (solo materiale, niente manodopera);
-        // il serbatoio GPL lo cambia il meccanico (manodopera compresa).
+        // Regola sul MATERIALE: tutti i lavori li fai tu (solo materiale, niente manodopera);
+        // serbatoio GPL e bombole del metano invece li cambia/collauda un'officina autorizzata (manodopera compresa).
+        // Gomme, freni, frizione e cinghia: prezzo per l'auto di riferimento (1.350 kg, 90 kW, gomme 205/55 R16);
+        // l'Archivio li adatta a ogni versione (misura delle gomme, peso e potenza). L'RC la adatta alla cilindrata.
         $userNotes = $sourceId("Indicazioni dell'utente (02/10/2026)", null, 'other');
+        $userNotes2 = $sourceId("Indicazioni dell'utente (13/10/2026)", null, 'other');
+        $partsEstimate = $sourceId('Stima prezzi ricambi online, solo materiale (13/10/2026)', null, 'other');
+        $ivass = $sourceId('IVASS – prezzo medio della garanzia RC auto (stima 2026)', 'https://www.ivass.it', 'government');
         $P = [
             // [codice, etichetta, valore, unità, nota, fonte, affidabilità, valido dal]
-            ['fuel_price_petrol', 'Prezzo benzina', 1.99, '€/l', 'prezzo attuale indicato da te', $userNotes, 'verified', '2026-10-02'],
-            ['fuel_price_diesel', 'Prezzo gasolio', 2.15, '€/l', 'prezzo attuale indicato da te', $userNotes, 'verified', '2026-10-02'],
+            ['km_year', "Km all'anno", 17500, 'km', 'Excel: 262.500 km in 15 anni', $excel, 'estimate', '2026-09-20'],
+            ['fuel_price_petrol', 'Prezzo benzina', 2.00, '€/l', 'prezzo attuale indicato da te', $userNotes2, 'verified', '2026-10-13'],
+            ['fuel_price_diesel', 'Prezzo gasolio', 2.20, '€/l', 'prezzo attuale indicato da te', $userNotes2, 'verified', '2026-10-13'],
             ['fuel_price_lpg', 'Prezzo GPL', 0.80, '€/l', 'prezzo attuale indicato da te', $userNotes, 'verified', '2026-10-02'],
             ['fuel_price_cng', 'Prezzo metano', 1.55, '€/kg', 'prezzo attuale indicato da te', $userNotes, 'verified', '2026-10-02'],
             ['electricity_price_home', 'Prezzo energia domestica', 0.3024, '€/kWh', 'scenario del tuo Excel', $excel, 'estimate', '2026-09-20'],
             ['electricity_price_public', 'Prezzo ricarica pubblica', null, '€/kWh', 'da rilevare', null, 'missing', null],
             ['charging_losses_pct', 'Perdite di ricarica', 10, '%', 'come nel tuo Excel', $excel, 'estimate', '2026-09-20'],
-            ['real_consumption_factor_pct', 'Consumo reale rispetto al WLTP', null, '%', 'da definire con fonte', null, 'missing', null],
-            ['insurance_year', 'Assicurazione RCA (media)', 750, '€/anno', 'Excel: 650–850 €/anno; dipende molto dal profilo', $excel, 'estimate', '2026-09-20'],
-            ['tire_set_price', 'Treno di gomme (solo materiale)', 600, '€', "valore dell'Excel (550–650 €): verifica che sia senza montaggio", $excel, 'estimate', '2026-09-20'],
+            ['real_consumption_factor_pct', 'Consumo reale rispetto al WLTP', null, '%', 'da definire con fonte (mancante = 100%, cioè il WLTP)', null, 'missing', null],
+            ['phev_electric_share_pct', 'Ibride plug-in: km fatti in elettrico', 50, '%', 'dipende da quanto ricarichi', $userNotes2, 'estimate', '2026-10-13'],
+            ['insurance_year', 'Assicurazione: solo RC, auto media (1.201–1.400 cc)', 430, '€/anno', 'media nazionale; adattata alla cilindrata (elettriche: alla potenza)', $ivass, 'estimate', '2026-10-13'],
+            ['tire_set_price', 'Treno di gomme 205/55 R16 (solo materiale)', 340, '€', '4 gomme di marca media; adattato alla misura di ogni versione', $partsEstimate, 'estimate', '2026-10-13'],
             ['tire_set_every_km', 'Cambio gomme ogni', 60000, 'km', 'indicato da te', $userNotes, 'estimate', '2026-10-02'],
             ['service_price', 'Tagliando', 250, '€', 'solo i primi anni (vedi sotto), poi niente: indicato da te', $userNotes, 'estimate', '2026-10-02'],
             ['service_years', 'Tagliandi: per i primi', 2, 'anni', 'uno all\'anno, indicato da te', $userNotes, 'estimate', '2026-10-02'],
-            ['brakes_job', 'Freni: dischi + pastiglie (solo materiale)', 700, '€', "valore dell'Excel: verifica che sia senza manodopera", $excel, 'estimate', '2026-09-20'],
+            ['brakes_job', 'Freni: dischi + pastiglie ant. e post. (solo materiale)', 300, '€', 'auto di riferimento; adattato a peso e potenza', $partsEstimate, 'estimate', '2026-10-13'],
             ['brakes_every_km', 'Freni ogni', 130000, 'km', 'Excel: 2 interventi in 262.500 km', $excel, 'estimate', '2026-09-20'],
-            ['clutch_job', 'Frizione (solo materiale, solo cambio manuale)', 1100, '€', "valore dell'Excel: verifica che sia senza manodopera", $excel, 'estimate', '2026-09-20'],
+            ['clutch_job', 'Kit frizione (solo materiale, solo cambio manuale)', 400, '€', 'auto di riferimento; adattato a peso e potenza', $partsEstimate, 'estimate', '2026-10-13'],
             ['clutch_every_km', 'Frizione ogni', 150000, 'km', 'stima del tuo Excel', $excel, 'estimate', '2026-09-20'],
-            ['timing_belt_job', 'Cinghia di distribuzione (solo materiale)', 1200, '€', "solo motori a cinghia; valore dell'Excel: verifica che sia senza manodopera", $excel, 'estimate', '2026-09-20'],
+            ['timing_belt_job', 'Kit cinghia + pompa acqua (solo materiale)', 200, '€', 'solo motori a cinghia; auto di riferimento, adattato a peso e potenza', $partsEstimate, 'estimate', '2026-10-13'],
             ['timing_belt_every_years', 'Cinghia ogni', 8, 'anni', 'verificare il motore', $excel, 'estimate', '2026-09-20'],
-            ['lpg_tank_job', 'Serbatoio GPL (con manodopera del meccanico)', 700, '€', 'Excel: sostituzione al 10° anno', $excel, 'estimate', '2026-09-20'],
+            ['lpg_tank_job', 'Serbatoio GPL (officina autorizzata, manodopera compresa)', 700, '€', 'Excel: sostituzione al 10° anno', $excel, 'estimate', '2026-09-20'],
             ['lpg_tank_year', 'Serbatoio GPL: sostituzione al', 10, '° anno', 'come nel tuo Excel', $excel, 'estimate', '2026-09-20'],
+            ['cng_tank_check_price', 'Bombole metano: collaudo (officina autorizzata)', 150, '€', 'manodopera compresa; stima da verificare', $userNotes2, 'estimate', '2026-10-13'],
+            ['cng_tank_check_every_years', 'Bombole metano: collaudo ogni', 4, 'anni', 'bombole R110: da verificare', $userNotes2, 'estimate', '2026-10-13'],
+            ['cng_tank_job', 'Bombole metano: sostituzione (officina autorizzata, manodopera compresa)', 1500, '€', 'stima da verificare', $userNotes2, 'estimate', '2026-10-13'],
+            ['cng_tank_year', 'Bombole metano: sostituzione al', 20, '° anno', 'scadenza delle bombole R110: da verificare', $userNotes2, 'estimate', '2026-10-13'],
             ['battery_12v_price', 'Batteria 12V (solo materiale)', 100, '€', 'media indicata da te', $userNotes, 'estimate', '2026-10-02'],
             ['battery_12v_every_years', 'Batteria 12V ogni', 3, 'anni', 'indicato da te', $userNotes, 'estimate', '2026-10-02'],
             ['unexpected_year', 'Imprevisti / piccoli guasti (fondo)', 270, '€/anno', 'Excel: ~4.000 € in 15 anni', $excel, 'estimate', '2026-09-20'],
-            ['revision_price', 'Revisione', 85, '€', 'prima al 4° anno, poi ogni 2', $excel, 'estimate', '2026-09-20'],
+            ['revision_price', 'Revisione', 80, '€', 'ogni 2 anni (la prima al 4° anno, per legge)', $userNotes2, 'estimate', '2026-10-13'],
             ['wallbox_price', 'Wallbox installata', 1300, '€', 'solo elettriche/plug-in, se la vuoi', $excel, 'estimate', '2026-09-20'],
             ['superbollo_eur_kw', 'Superbollo (oltre 185 kW)', 20, '€/kW', 'tributo nazionale, ridotto dopo 5/10/15 anni', $national, 'estimate', '2026-09-20'],
         ];
@@ -556,7 +585,7 @@ if (strlen($key) < 20) {
 
         // Inserisco i nuovi; aggiorno quelli che hanno ancora un valore "di partenza" (dall'Excel, dalle tue indicazioni
         // o mancante). Quelli modificati a mano dalla pagina Impostazioni hanno un'altra fonte: NON li tocco.
-        $seedSources = [$excel, $userNotes, $national];
+        $seedSources = [$excel, $userNotes, $userNotes2, $partsEstimate, $ivass, $national];
         $find = $pdo->prepare('SELECT source_id, confidence FROM ca_parameters WHERE code = ?');
         $insert = $pdo->prepare(
             'INSERT INTO ca_parameters (code, label, value_num, unit, note, source_id, confidence, valid_from, sort_order, updated_at)

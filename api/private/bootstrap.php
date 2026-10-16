@@ -19,6 +19,7 @@ require __DIR__ . '/models.php';
 require __DIR__ . '/settings.php';
 require __DIR__ . '/agent.php';
 require __DIR__ . '/imports.php';
+require __DIR__ . '/real-consumption.php';
 
 function config(): array
 {

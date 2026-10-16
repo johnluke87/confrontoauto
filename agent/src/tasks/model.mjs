@@ -71,6 +71,9 @@ REGOLE (importantissime):
    Se il listino scrive motore e allestimento sulla stessa riga (es. "1.3 mhev Intense dct € 28.900"), separali:
    allestimento "Intense", motorizzazione "1.3 mhev dct"; la citazione del prezzo è la riga intera.
 5. Solo ${task.model}: ignora altri modelli citati nelle pagine.
+6. Dotazioni per OGNI allestimento. I listini spesso elencano per un allestimento solo le cose in più
+   ("Expression: in aggiunta a Essential...", "come Essential più..."): in quel caso ripeti per l'allestimento
+   superiore anche le dotazioni di serie di quello inferiore, con la stessa citazione usata per l'inferiore.
 
 CAMPI:
 - model: bodyType (city|hatchback|sedan|wagon|suv|crossover|mpv|coupe|convertible|pickup|van|other), generation (testo breve)
@@ -148,6 +151,9 @@ export async function collectModelDocs(task, { pages, llm, log }) {
 
   // 1) la pagina del modello: quella in archivio, oppure la cerco tra i link della home del marchio
   let modelUrl = task.url;
+  if (!modelUrl && !task.brandUrl) {
+    throw new Error('nessun sito ufficiale in archivio');
+  }
   if (!modelUrl) {
     const home = await pages.get(task.brandUrl);
     const candidates = usefulLinks(home, task.brandUrl).filter((l) => containsName(l.text, task.model) || containsName(l.href, task.model));

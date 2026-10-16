@@ -25,6 +25,17 @@ export interface CatalogRow {
   electricRangeKm: number | null;
   batteryKwh: number | null;
   co2: number | null;
+  timing: 'belt' | 'chain' | 'none' | null;
+  // plug-in: consumo in elettrico (kWh/100km)
+  electricConsumption: number | null;
+  // consumi REALI dai contatori di bordo (dati UE): l/100km su tutti i km (plug-in: compresi quelli in elettrico),
+  // kWh/100km presi dalla presa (plug-in), quota di km in elettrico, reale/WLTP, quante auto, a che livello
+  realConsumption: number | null;
+  realKwh100km: number | null;
+  realEvShare: number | null;
+  realFactor: number | null;
+  realVehicles: number | null;
+  realLevel: 'version' | 'model' | 'brand' | null;
   listPrice: number | null;
   onRoadPrice: number | null;
   priceConfidence: Confidence | null;
@@ -37,6 +48,23 @@ export interface CatalogRow {
   seats: number | null;
   doors: number | null;
   weightKg: number | null;
+  // es. "205/55 R16"
+  tireSize: string | null;
+  // pagina del modello sul sito ufficiale (o del marchio)
+  modelUrl: string | null;
+  // stima dei costi (calcolata nel browser con i prezzi scelti in alto nell'Archivio): null = dati insufficienti
+  energyYear: number | null;
+  runningYear: number | null;
+  running10: number | null;
+  running15: number | null;
+  total10: number | null;
+  total15: number | null;
+  // cosa ho dovuto stimare (consumo dalla CO₂...) o perché manca qualcosa
+  costNote: string | null;
+  // true = qualche dato (consumo, potenza) l'ho dovuto stimare
+  costGuessed: boolean;
+  // il consumo usato per i costi, per 100 km (unità come consumptionUnit; plug-in: litri su tutti i km)
+  usedConsumption: number | null;
   // calcolato: a listino / non più a listino / da ricercare / fuori produzione
   state: 'listed' | 'unlisted' | 'pending' | 'discontinued';
 }
@@ -50,6 +78,14 @@ export interface CatalogRowsResponse {
 export function toCatalogRows(response: CatalogRowsResponse): CatalogRow[] {
   return response.rows.map((values) => {
     const row = Object.fromEntries(response.columns.map((name, i) => [name, values[i]])) as unknown as CatalogRow;
+    // colonne aggiunte dopo: un server non ancora aggiornato non le manda
+    row.timing ??= null;
+    row.electricConsumption ??= null;
+    row.tireSize ??= null;
+    row.modelUrl ??= null;
+    for (const key of ['realConsumption', 'realKwh100km', 'realEvShare', 'realFactor', 'realVehicles', 'realLevel'] as const) {
+      row[key] ??= null;
+    }
     row.state =
       row.modelStatus === 'discontinued' ? 'discontinued' : row.variantId === null ? 'pending' : row.available ? 'listed' : 'unlisted';
     return row;

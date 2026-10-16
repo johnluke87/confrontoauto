@@ -18,6 +18,27 @@
   <button mat-stroked-button (click)="exportCsv()" [disabled]="!filtered().length"><mat-icon>download</mat-icon> CSV</button>
 </div>
 
+<div class="costi">
+  <span class="etichetta">Stima dei costi:</span>
+  @for (f of costFieldList; track f.key) {
+    <label class="costo">
+      {{ f.label }}
+      <input class="filtro" type="number" min="0" [step]="f.step" [value]="costInputs()[f.key]" (change)="setCostInput(f.key, $any($event.target).value)" />
+      <span class="unita">{{ f.unit }}</span>
+    </label>
+  }
+  <mat-checkbox [checked]="costInputs().wallbox" (change)="setCostInput('wallbox', $event.checked)" class="costo">wallbox (elettriche e plug-in)</mat-checkbox>
+  @if (costOverrideCount()) {
+    <button mat-button (click)="resetCostInputs()"><mat-icon>restart_alt</mat-icon> Valori di partenza</button>
+  }
+  <span class="aiuto">
+    bollo: {{ region()?.name ?? '…' }} · manutenzione, assicurazione e il resto dai parametri in Impostazioni · consumi reali dai dati UE dove ci sono · in corsivo = qualche dato stimato (passaci sopra)
+    @if (parameters.error()) {
+      <span class="errore"> · parametri non disponibili: niente stime</span>
+    }
+  </span>
+</div>
+
 <mat-menu #colonne="matMenu" class="menu-colonne">
   <div class="menu-azioni" (click)="$event.stopPropagation()">
     <button mat-button (click)="showColumns('all')">Tutte</button>
@@ -58,8 +79,10 @@
     <table>
       <thead>
         <tr>
+          <th class="link fisso" rowspan="2" title="Pagina del modello sul sito ufficiale"></th>
+          <th class="link dettaglio fisso" rowspan="2" title="Scheda del modello"></th>
           @for (c of columns(); track c.key) {
-            <th [class.num]="c.type === 'number' || c.type === 'money'" (click)="sortBy(c, $event)" [matTooltip]="'Clic: ordina · Maiusc+clic: aggiungi ordinamento'" matTooltipShowDelay="800">
+            <th [class.fisso]="stickyLeft().has(c.key)" [style.left.px]="stickyLeft().get(c.key)" [class.num]="c.type === 'number' || c.type === 'money'" (click)="sortBy(c, $event)" [matTooltip]="(c.hint ? c.hint + ' (stima) · ' : '') + 'Clic: ordina · Maiusc+clic: aggiungi ordinamento'" matTooltipShowDelay="800">
               {{ c.label }}
               @if (sortIndex(c.key) >= 0) {
                 <span class="freccia">{{ sorts()[sortIndex(c.key)].dir === 1 ? '↑' : '↓' }}@if (sorts().length > 1) {<sub>{{ sortIndex(c.key) + 1 }}</sub>}</span>
@@ -69,7 +92,7 @@
         </tr>
         <tr class="filtri">
           @for (c of columns(); track c.key) {
-            <th>
+            <th [class.fisso]="stickyLeft().has(c.key)" [style.left.px]="stickyLeft().get(c.key)">
               @switch (c.type) {
                 @case ('enum') {
                   <mat-select multiple placeholder="Tutti" [value]="filters().enums[c.key] ?? []" (selectionChange)="setEnum(c.key, $event.value)" [attr.aria-label]="'Filtro ' + c.label" panelClass="pannello-filtro">
@@ -94,18 +117,36 @@
       </thead>
       <tbody>
         @for (r of pageRows(); track $index) {
-          <tr (click)="open(r.row)" [class.spenta]="r.row.state !== 'listed'">
+          <tr [class.spenta]="r.row.state !== 'listed'">
+            <td class="link fisso">
+              @if (r.row.modelUrl) {
+                <a [href]="r.row.modelUrl" target="_blank" rel="noopener noreferrer" (click)="$event.stopPropagation()" [attr.aria-label]="'Sito ufficiale ' + r.row.brand + ' ' + r.row.model" title="Apri la pagina del modello sul sito ufficiale">
+                  <mat-icon>open_in_new</mat-icon>
+                </a>
+              }
+            </td>
+            <td class="link dettaglio fisso">
+              <a [routerLink]="['/catalog/model', r.row.modelId]" [attr.aria-label]="'Scheda ' + r.row.brand + ' ' + r.row.model" title="Apri la scheda del modello">
+                <mat-icon>info</mat-icon>
+              </a>
+            </td>
             @for (c of columns(); track c.key; let i = $index) {
-              <td [class.num]="c.type === 'number' || c.type === 'money'">
-                {{ r.cells[i] }}
-                @if (c.type === 'money' && r.cells[i] && r.row.priceConfidence) {
+              <td
+                [class.fisso]="stickyLeft().has(c.key)"
+                [style.left.px]="stickyLeft().get(c.key)"
+                [attr.title]="stickyLeft().has(c.key) ? r.cells[i] : (c.estimate ? r.row.costNote : null)"
+                [class.num]="c.type === 'number' || c.type === 'money'"
+                [class.stimato]="c.estimate && r.row.costGuessed"
+              >
+                {{ c.estimate && !r.cells[i] ? '—' : r.cells[i] }}
+                @if (c.type === 'money' && !c.estimate && r.cells[i] && r.row.priceConfidence) {
                   <app-confidence-badge [confidence]="r.row.priceConfidence" />
                 }
               </td>
             }
           </tr>
         } @empty {
-          <tr><td class="vuoto" [attr.colspan]="columns().length">Nessuna auto con questi filtri.</td></tr>
+          <tr><td class="vuoto" [attr.colspan]="columns().length + 2">Nessuna auto con questi filtri.</td></tr>
         }
       </tbody>
     </table>

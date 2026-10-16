@@ -50,6 +50,8 @@ $routes = [
     ['GET',    '#^/agent/work$#',      'handle_agent_work'],
     ['POST',   '#^/agent/results$#',   'handle_agent_results'],
     ['POST',   '#^/agent/release$#',   'handle_agent_release'],
+    ['GET',    '#^/agent/powertrains$#',      'handle_agent_powertrains'],
+    ['POST',   '#^/agent/real-consumption$#', 'handle_agent_real_consumption'],
 ];
 
 $method = $_SERVER['REQUEST_METHOD'];

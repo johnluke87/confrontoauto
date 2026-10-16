@@ -209,9 +209,11 @@ function handle_catalog_rows(): never
     $rows = db()->query(
         "SELECT m.id AS model_id, b.id AS brand_id, b.name AS brand, m.name AS model, m.body_type, m.status, m.last_researched_at,
                 t.name AS trim_name, v.id AS variant_id, v.available, v.list_price_cents, v.on_road_cents, v.provenance AS variant_provenance,
-                v.length_mm, v.width_mm, v.height_mm, v.wheelbase_mm, v.trunk_l, v.trunk_max_l, v.seats, v.doors, v.weight_kg,
+                v.length_mm, v.width_mm, v.height_mm, v.wheelbase_mm, v.trunk_l, v.trunk_max_l, v.seats, v.doors, v.weight_kg, v.tire_size,
                 p.name AS powertrain, p.fuel, p.power_kw, p.power_cv, p.displacement_cc, p.gearbox, p.gears, p.drive,
-                p.consumption_wltp, p.consumption_unit, p.electric_range_km, p.battery_kwh, p.co2_g_km
+                p.consumption_wltp, p.consumption_unit, p.electric_range_km, p.battery_kwh, p.co2_g_km, p.timing, p.electric_consumption_wltp,
+                p.real_consumption, p.real_kwh_100km, p.real_ev_share, p.real_factor, p.real_vehicles, p.real_level,
+                COALESCE(m.official_url, b.official_url) AS model_url
            FROM ca_models m
            JOIN ca_brands b ON b.id = m.brand_id
            LEFT JOIN (ca_trims t JOIN ca_variants v ON v.trim_id = t.id) ON t.model_id = m.id
@@ -222,9 +224,12 @@ function handle_catalog_rows(): never
     $columns = [
         'modelId', 'brandId', 'brand', 'model', 'bodyType', 'modelStatus', 'researchedAt',
         'variantId', 'available', 'trim', 'powertrain', 'fuel', 'powerKw', 'powerCv', 'displacementCc', 'gearbox', 'gears', 'drive',
-        'consumption', 'consumptionUnit', 'electricRangeKm', 'batteryKwh', 'co2',
+        'consumption', 'consumptionUnit', 'electricRangeKm', 'batteryKwh', 'co2', 'timing', 'electricConsumption',
+        'realConsumption', 'realKwh100km', 'realEvShare', 'realFactor', 'realVehicles', 'realLevel',
         'listPrice', 'onRoadPrice', 'priceConfidence',
-        'lengthMm', 'widthMm', 'heightMm', 'wheelbaseMm', 'trunkL', 'trunkMaxL', 'seats', 'doors', 'weightKg',
+        'lengthMm', 'widthMm', 'heightMm', 'wheelbaseMm', 'trunkL', 'trunkMaxL', 'seats', 'doors', 'weightKg', 'tireSize',
+        // pagina del modello sul sito ufficiale (o del marchio, se il modello non ce l'ha)
+        'modelUrl',
     ];
     $int = fn ($v) => $v === null ? null : (int) $v;
     $float = fn ($v) => $v === null ? null : (float) $v;
@@ -239,11 +244,15 @@ function handle_catalog_rows(): never
             $int($r['variant_id']), $r['variant_id'] === null ? null : (bool) $r['available'], $r['trim_name'], $r['powertrain'], $r['fuel'],
             $int($r['power_kw']), $int($r['power_cv']), $int($r['displacement_cc']), $r['gearbox'], $int($r['gears']), $r['drive'],
             $float($r['consumption_wltp']), $r['consumption_unit'], $int($r['electric_range_km']), $float($r['battery_kwh']), $int($r['co2_g_km']),
+            $r['timing'], $float($r['electric_consumption_wltp']),
+            $float($r['real_consumption']), $float($r['real_kwh_100km']), $float($r['real_ev_share']), $float($r['real_factor']),
+            $int($r['real_vehicles']), $r['real_level'],
             $r['list_price_cents'] === null ? null : (int) $r['list_price_cents'] / 100,
             $r['on_road_cents'] === null ? null : (int) $r['on_road_cents'] / 100,
             $priceConfidence,
             $int($r['length_mm']), $int($r['width_mm']), $int($r['height_mm']), $int($r['wheelbase_mm']),
-            $int($r['trunk_l']), $int($r['trunk_max_l']), $int($r['seats']), $int($r['doors']), $int($r['weight_kg']),
+            $int($r['trunk_l']), $int($r['trunk_max_l']), $int($r['seats']), $int($r['doors']), $int($r['weight_kg']), $r['tire_size'],
+            $r['model_url'],
         ];
     }
     json_response(['columns' => $columns, 'rows' => $out]);

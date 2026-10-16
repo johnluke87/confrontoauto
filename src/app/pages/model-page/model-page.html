@@ -137,9 +137,9 @@
             @for (row of featureMatrix(); track row.name) {
               <tr>
                 <td>{{ row.name }}</td>
-                @for (cell of row.cells; track $index) {
+                @for (c of row.cells; track $index) {
                   <td class="cella">
-                    @if (cell) {
+                    @if (c.feature; as cell) {
                       @switch (cell.availability) {
                         @case ('standard') {
                           <mat-icon class="si" aria-label="di serie">check</mat-icon>
@@ -155,6 +155,11 @@
                         }
                       }
                       <app-confidence-badge [confidence]="cell.confidence" [source]="cell.sourceId !== null ? src.get(cell.sourceId) : null" />
+                    } @else if (c.inheritedFrom) {
+                      <span class="probabile" [title]="'Probabilmente di serie: lo è in ' + c.inheritedFrom + ' (il listino di solito elenca solo le dotazioni in più)'">
+                        <mat-icon class="si" aria-label="probabilmente di serie">check</mat-icon>?
+                      </span>
+                      <app-confidence-badge confidence="estimate" [source]="null" />
                     } @else {
                       <span class="no">?</span>
                     }
@@ -165,7 +170,7 @@
           </tbody>
         </table>
       </div>
-      <p class="legenda"><mat-icon class="si">check</mat-icon> di serie · prezzo = optional · nome = in un pacchetto · ? = non sappiamo</p>
+      <p class="legenda"><mat-icon class="si">check</mat-icon> di serie · <span class="probabile"><mat-icon class="si">check</mat-icon>?</span> probabilmente di serie (lo è in un allestimento inferiore) · prezzo = optional · nome = in un pacchetto · ? = non sappiamo</p>
     </section>
   }
 

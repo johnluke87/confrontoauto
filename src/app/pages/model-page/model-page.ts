@@ -51,7 +51,12 @@ export class ModelPage {
   /** Le misure: di solito uguali per tutte le versioni, prendo la prima che le ha. */
   protected dimensions = computed(() => (this.model.hasValue() ? (this.model.value().variants.find((v) => v.lengthMm !== null) ?? null) : null));
 
-  /** Matrice dotazioni: solo le dotazioni di cui sappiamo qualcosa, per ogni allestimento. */
+  /**
+   * Matrice dotazioni: solo le dotazioni di cui sappiamo qualcosa, per ogni allestimento.
+   * Gli allestimenti sono in ordine di listino (dal più semplice): una dotazione di serie in un allestimento
+   * di solito lo è anche in quelli dopo, e i listini spesso scrivono solo "in aggiunta a ...".
+   * Dove non sappiamo niente la mostro come "probabilmente di serie" (inheritedFrom), da prendere come stima.
+   */
   protected featureMatrix = computed(() => {
     if (!this.model.hasValue()) {
       return [];
@@ -61,7 +66,17 @@ export class ModelPage {
     const known = new Set(m.trimFeatures.map((f) => f.code));
     return m.features
       .filter((f) => known.has(f.code))
-      .map((f) => ({ name: f.name, cells: m.trims.map((t) => byKey.get(`${t.id}|${f.code}`) ?? null) }));
+      .map((f) => {
+        let standardIn: string | null = null;
+        const cells = m.trims.map((t) => {
+          const feature = byKey.get(`${t.id}|${f.code}`) ?? null;
+          if (feature) {
+            standardIn = feature.availability === 'standard' ? t.name : null;
+          }
+          return { feature, inheritedFrom: feature ? null : standardIn };
+        });
+        return { name: f.name, cells };
+      });
   });
 
   protected queued = signal(false);
